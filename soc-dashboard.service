@@ -1,0 +1,27 @@
+[Unit]
+Description=SOC Dashboard (Django/Gunicorn)
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=jong2
+Group=jong2
+WorkingDirectory=/home/jong2/soc-dashboard
+EnvironmentFile=/home/jong2/soc-dashboard/.env
+ExecStart=/home/jong2/soc-dashboard/venv/bin/gunicorn \
+    --bind 127.0.0.1:8002 \
+    --workers 3 \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info \
+    config.wsgi:application
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=soc-dashboard
+
+[Install]
+WantedBy=multi-user.target

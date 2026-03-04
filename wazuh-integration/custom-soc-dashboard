@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""
+Wazuh Custom Integration — SOC Dashboard
+Deploy this file to: /var/ossec/integrations/custom-soc-dashboard
+  chmod 750 /var/ossec/integrations/custom-soc-dashboard
+  chown root:wazuh /var/ossec/integrations/custom-soc-dashboard
+
+Then add to /var/ossec/etc/ossec.conf (inside <ossec_config>):
+  <integration>
+    <name>custom-soc-dashboard</name>
+    <level>3</level>
+    <alert_format>json</alert_format>
+  </integration>
+
+Restart: systemctl restart wazuh-manager
+"""
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+# ── Configuration ──────────────────────────────────────────
+DASHBOARD_URL = "http://192.168.174.129:8500"
+API_TOKEN     = "b06c4b198a70bf3584db2bf0a62dd79a5aca7143"
+TIMEOUT       = 10
+# ───────────────────────────────────────────────────────────
+
+
+def send_alert(alert: dict) -> bool:
+    data = json.dumps(alert).encode('utf-8')
+    req = urllib.request.Request(
+        f"{DASHBOARD_URL}/api/alerts/wazuh-webhook/",
+        data=data,
+        method='POST',
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Token {API_TOKEN}',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            return resp.status in (200, 201)
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(f"[soc-dashboard] HTTP {e.code}: {e.read().decode()[:200]}\n")
+        return False
+    except Exception as e:
+        sys.stderr.write(f"[soc-dashboard] Error: {e}\n")
+        return False
+
+
+def main():
+    # Wazuh passes the alert JSON file path as argv[1]
+    if len(sys.argv) < 2:
+        sys.stderr.write("[soc-dashboard] No alert file path provided\n")
+        sys.exit(1)
+
+    alert_file = sys.argv[1]
+    try:
+        with open(alert_file) as f:
+            alert = json.load(f)
+    except Exception as e:
+        sys.stderr.write(f"[soc-dashboard] Cannot read alert file: {e}\n")
+        sys.exit(1)
+
+    success = send_alert(alert)
+    sys.exit(0 if success else 1)
+
+
+if __name__ == '__main__':
+    main()

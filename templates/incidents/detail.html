@@ -1,0 +1,359 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ incident.thehive_case_id }} - SOC Dashboard{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/incidents/">Incidents</a></li>
+        <li class="breadcrumb-item active">{{ incident.thehive_case_id }}</li>
+    </ol>
+</nav>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            {% if incident.status == 'New' %}
+                <span class="badge bg-primary">New</span>
+            {% elif incident.status == 'InProgress' %}
+                <span class="badge bg-warning text-dark">In Progress</span>
+            {% elif incident.status == 'Resolved' %}
+                <span class="badge bg-success">Resolved</span>
+            {% else %}
+                <span class="badge bg-secondary">{{ incident.status }}</span>
+            {% endif %}
+            {% if incident.severity %}
+                <span class="badge badge-{{ incident.severity }}">{{ incident.severity }}</span>
+            {% endif %}
+        </div>
+        <h4 class="mb-1">{{ incident.title }}</h4>
+        <small class="text-muted">
+            {{ incident.thehive_case_id }}
+            &bull; Created {{ incident.created_at|date:"Y-m-d H:i" }}
+            &bull; Updated {{ incident.updated_at|date:"Y-m-d H:i" }}
+        </small>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/incidents/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        <a href="/incidents/{{ incident.pk }}/edit/" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal()">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Left Column -->
+    <div class="col-lg-8">
+        <!-- Incident Details -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-folder2-open me-2"></i>Incident Details</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Case ID</div>
+                        <div style="color:#c9d1d9;">{{ incident.thehive_case_id }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Status</div>
+                        <div>
+                            {% if incident.status == 'New' %}
+                                <span class="badge bg-primary">New</span>
+                            {% elif incident.status == 'InProgress' %}
+                                <span class="badge bg-warning text-dark">In Progress</span>
+                            {% elif incident.status == 'Resolved' %}
+                                <span class="badge bg-success">Resolved</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ incident.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Severity</div>
+                        <div>
+                            {% if incident.severity %}
+                                <span class="badge badge-{{ incident.severity }}">{{ incident.severity }}</span>
+                            {% else %}<span style="color:#c9d1d9;">—</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">TheHive URL</div>
+                        <div>
+                            {% if incident.thehive_url %}
+                                <a href="{{ incident.thehive_url }}" target="_blank" class="text-info text-decoration-none">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Open in TheHive
+                                </a>
+                            {% else %}<span style="color:#c9d1d9;">—</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Created At</div>
+                        <div style="color:#c9d1d9;">{{ incident.created_at|date:"Y-m-d H:i:s" }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Updated At</div>
+                        <div style="color:#c9d1d9;">{{ incident.updated_at|date:"Y-m-d H:i:s" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Related Alert -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-exclamation-triangle me-2"></i>Related Alert</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Agent</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.agent_name }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Agent IP</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.agent_ip|default:"—" }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Rule ID</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.rule_id }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Rule Level</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.rule_level }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Source IP</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.src_ip|default:"—" }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">MITRE ATT&CK</div>
+                        <div>
+                            {% if incident.alert.mitre_id %}
+                                <span class="badge bg-secondary">{{ incident.alert.mitre_id }}</span>
+                            {% else %}<span style="color:#c9d1d9;">—</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Rule Description</div>
+                        <div style="color:#c9d1d9;">{{ incident.alert.rule_description }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Rule Groups</div>
+                        <div>
+                            {% for g in incident.alert.rule_groups %}
+                                <span class="badge me-1" style="background-color:#21262d; color:#c9d1d9; border:1px solid #30363d;">{{ g }}</span>
+                            {% empty %}<span style="color:#c9d1d9;">—</span>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="/alerts/{{ incident.alert_id }}/" class="text-info text-decoration-none">
+                        View Full Alert <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-lg-4">
+        <!-- AI Analysis -->
+        {% if incident.alert.ai_analysis %}
+        <div class="card mb-3" style="border-color: #238636;">
+            <div class="card-header" style="background-color: #0d2d16;">
+                <i class="bi bi-cpu me-2 text-success"></i>AI Analysis
+                <small class="text-muted ms-2">{{ incident.alert.ai_analysis.analyzed_at|date:"H:i" }}</small>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Attack Type</div>
+                    <div class="fw-bold" style="color:#c9d1d9;">{{ incident.alert.ai_analysis.attack_type }}</div>
+                </div>
+                {% if incident.alert.ai_analysis.mitre_technique %}
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">MITRE Technique</div>
+                    <div><span class="badge bg-secondary">{{ incident.alert.ai_analysis.mitre_technique }}</span></div>
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Severity Assessment</div>
+                    <div><span class="badge badge-{{ incident.alert.ai_analysis.severity_assessment }}">{{ incident.alert.ai_analysis.severity_assessment }}</span></div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="text-muted me-2" style="font-size:0.82rem; white-space:nowrap;">False Positive:</div>
+                        <div class="flex-grow-1">
+                            <div class="progress" style="height: 8px; background-color: #21262d;">
+                                <div class="progress-bar {% if incident.alert.ai_analysis.false_positive_pct > 60 %}bg-success{% elif incident.alert.ai_analysis.false_positive_pct > 30 %}bg-warning{% else %}bg-danger{% endif %}"
+                                     style="width: {{ incident.alert.ai_analysis.false_positive_pct }}%"></div>
+                            </div>
+                        </div>
+                        <small class="ms-2 fw-bold">{{ incident.alert.ai_analysis.false_positive_pct }}%</small>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Summary</div>
+                    <div style="color:#c9d1d9;">{{ incident.alert.ai_analysis.summary }}</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Chat AI Analysis -->
+        {% if incident.alert.ai_analysis_chat %}
+        {% with chat=incident.alert.ai_analysis_chat %}
+        <div class="card mb-3" style="border-color: #1f6feb;">
+            <div class="card-header" style="background-color: #0d1f3c;">
+                <i class="bi bi-chat-dots me-2 text-info"></i>Chat AI Analysis
+                <small class="text-muted ms-2">{{ chat.analyzed_at|date:"H:i" }}</small>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Risk Level / ระดับความเสี่ยง</div>
+                    <div>
+                        {% if chat.risk_level == 'Critical' %}
+                            <span class="badge badge-CRITICAL">{{ chat.risk_level }}</span>
+                        {% elif chat.risk_level == 'High' %}
+                            <span class="badge badge-HIGH">{{ chat.risk_level }}</span>
+                        {% elif chat.risk_level == 'Medium' %}
+                            <span class="badge badge-MEDIUM">{{ chat.risk_level }}</span>
+                        {% else %}
+                            <span class="badge badge-LOW">{{ chat.risk_level }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Classification</div>
+                    <div>
+                        {% if chat.is_malicious == 'malicious' %}
+                            <span class="badge bg-danger">โจมตี</span>
+                        {% elif chat.is_malicious == 'misconfiguration' %}
+                            <span class="badge bg-warning text-dark">ตั้งค่าผิด</span>
+                        {% elif chat.is_malicious == 'benign' %}
+                            <span class="badge bg-success">ปกติ</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ chat.is_malicious }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Root Cause</div>
+                    <div style="color:#c9d1d9;">{{ chat.root_cause }}</div>
+                    {% if chat.root_cause_th %}
+                    <div class="mt-1" style="color:#8b949e; font-size:0.85rem;">{{ chat.root_cause_th }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Recommended Action</div>
+                    <div style="color:#c9d1d9;">{{ chat.recommended_action }}</div>
+                    {% if chat.recommended_action_th %}
+                    <div class="mt-1" style="color:#8b949e; font-size:0.85rem;">{{ chat.recommended_action_th }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+        {% else %}
+        <div class="card mb-3" style="border-color: #1f6feb;">
+            <div class="card-header" style="background-color: #0d1f3c;">
+                <i class="bi bi-chat-dots me-2 text-info"></i>Chat AI Analysis
+            </div>
+            <div class="card-body text-center text-muted py-3">
+                <i class="bi bi-chat-dots display-6 d-block mb-2"></i>
+                ยังไม่ได้วิเคราะห์
+                <div class="mt-2">
+                    <button id="inc-chat-btn" class="btn btn-sm btn-outline-info"
+                            onclick="sendChatAI({{ incident.alert_id }})">
+                        <i class="bi bi-cpu me-1"></i>Analyze with Chat AI
+                    </button>
+                    <div id="inc-chat-status" class="mt-2 small text-info" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-lightning me-2"></i>Quick Actions</div>
+            <div class="card-body d-grid gap-2">
+                {% if incident.thehive_url %}
+                <a href="{{ incident.thehive_url }}" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>Open in TheHive
+                </a>
+                {% endif %}
+                <a href="/alerts/{{ incident.alert_id }}/" class="btn btn-outline-secondary">
+                    <i class="bi bi-exclamation-triangle me-2"></i>View Source Alert
+                </a>
+                <a href="/incidents/{{ incident.pk }}/edit/" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil me-2"></i>Edit Incident
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background-color:#161b22; border:1px solid #30363d;">
+            <div class="modal-header" style="border-bottom:1px solid #30363d;">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Delete incident <strong>{{ incident.thehive_case_id }}</strong>? This action cannot be undone.
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #30363d;">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="/incidents/{{ incident.pk }}/delete/">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showDeleteModal() {
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function sendChatAI(alertId) {
+    const btn = document.getElementById('inc-chat-btn');
+    const status = document.getElementById('inc-chat-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analyzing…';
+    status.style.display = 'block';
+    status.textContent = 'กำลังส่งให้ Chat AI วิเคราะห์…';
+    const csrfToken = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    fetch('/alerts/' + alertId + '/analyze-chat/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            status.textContent = 'เสร็จแล้ว! กำลัง reload…';
+            location.reload();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Analyze with Chat AI';
+            status.textContent = 'Error: ' + (data.error || 'Unknown');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Analyze with Chat AI';
+        status.textContent = 'Network error';
+    });
+}
+</script>
+{% endblock %}

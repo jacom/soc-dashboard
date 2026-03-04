@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - SOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-bell me-2 text-success"></i>Notification Log</h4>
+    <small class="text-muted">{{ notifications.paginator.count }} total entries</small>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-sm-3">
+                <select name="channel" class="form-select form-select-sm">
+                    <option value="">All Channels</option>
+                    {% for val, label in channel_choices %}
+                    <option value="{{ val }}" {% if channel_filter == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-3">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    {% for val, label in status_choices %}
+                    <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-2 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search"></i></button>
+                <a href="/notifications/" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x"></i></a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Alert</th>
+                        <th>Message Preview / Error</th>
+                        <th>Time</th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for notif in notifications %}
+                    <tr>
+                        <td><span class="badge bg-primary">{{ notif.channel }}</span></td>
+                        <td>
+                            {% if notif.status == 'sent' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Sent</span>
+                            {% else %}
+                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/alerts/{{ notif.alert_id }}/" class="text-decoration-none">
+                                <small>Alert #{{ notif.alert_id }}</small>
+                            </a>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ notif.message_preview|truncatechars:80 }}</small>
+                            {% if notif.status != 'sent' and notif.error_message %}
+                                <br><small class="text-danger">{{ notif.error_message|truncatechars:80 }}</small>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ notif.sent_at|date:"M d, H:i:s" }}</small></td>
+                        <td>
+                            {% if notif.status != 'sent' and notif.channel == 'MOPH' %}
+                            <button class="btn btn-sm btn-outline-warning"
+                                    id="retry-btn-{{ notif.id }}"
+                                    onclick="retryNotif({{ notif.id }}, this)"
+                                    title="Retry">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-bell-slash display-6 d-block mb-2"></i>
+                            No notifications logged yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if notifications.has_other_pages %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+        {% if notifications.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ notifications.previous_page_number }}&channel={{ channel_filter }}&status={{ status_filter }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        {% for num in notifications.paginator.page_range %}
+        <li class="page-item {% if num == notifications.number %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}&channel={{ channel_filter }}&status={{ status_filter }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+        {% if notifications.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ notifications.next_page_number }}&channel={{ channel_filter }}&status={{ status_filter }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function retryNotif(pk, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch('/notifications/' + pk + '/retry/', {
+            method: 'POST',
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            btn.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+            setTimeout(() => location.reload(), 800);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+            alert('Retry failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+        alert('Network error');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SOC Dashboard{% endblock %}</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .navbar { background-color: #161b22 !important; border-bottom: 1px solid #30363d; }
+        .navbar-brand { color: #58a6ff !important; font-weight: 700; font-size: 1.3rem; }
+        .nav-link { color: #8b949e !important; }
+        .nav-link:hover, .nav-link.active { color: #58a6ff !important; }
+        .sidebar { background-color: #161b22; border-right: 1px solid #30363d; min-height: calc(100vh - 56px); }
+        .sidebar .nav-link { color: #8b949e; padding: 0.6rem 1rem; border-radius: 6px; margin: 2px 8px; }
+        .sidebar .nav-link:hover { background-color: #21262d; color: #c9d1d9; }
+        .sidebar .nav-link.active { background-color: #1f6feb33; color: #58a6ff; }
+        .sidebar .nav-link i { width: 20px; }
+        .main-content { background-color: #0d1117; }
+        .card { background-color: #161b22; border: 1px solid #30363d; color: #c9d1d9; }
+        .card-header { background-color: #21262d; border-bottom: 1px solid #30363d; }
+        /* Override Bootstrap 5 table CSS variables */
+        .table {
+            --bs-table-bg: #161b22;
+            --bs-table-color: #cdd9e5;
+            --bs-table-border-color: #2d333b;
+            --bs-table-hover-bg: #22272e;
+            --bs-table-hover-color: #e6edf3;
+            --bs-table-striped-bg: #1c2128;
+            --bs-table-striped-color: #cdd9e5;
+            color: #cdd9e5;
+        }
+        .table thead th {
+            background-color: #21262d;
+            color: #adbac7;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.65rem 0.85rem;
+            white-space: nowrap;
+            border-bottom: 2px solid #444c56 !important;
+        }
+        .table td { padding: 0.55rem 0.85rem; vertical-align: middle; }
+        .table-hover tbody tr:hover { --bs-table-hover-bg: #22272e; }
+        .badge-CRITICAL { background-color: #da3633; }
+        .badge-HIGH { background-color: #d29922; }
+        .badge-MEDIUM { background-color: #1f6feb; }
+        .badge-LOW { background-color: #238636; }
+        .badge-INFO { background-color: #3d444d; }
+        .stat-card { border-left: 4px solid; }
+        .stat-card.critical { border-color: #da3633; }
+        .stat-card.high { border-color: #d29922; }
+        .stat-card.medium { border-color: #1f6feb; }
+        .stat-card.total { border-color: #58a6ff; }
+        .stat-card .stat-number { font-size: 2.5rem; font-weight: 700; line-height: 1; }
+        .stat-card .stat-label { font-size: 0.85rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+        .form-control, .form-select { background-color: #21262d; border-color: #30363d; color: #c9d1d9; }
+        .form-control:focus, .form-select:focus { background-color: #21262d; border-color: #58a6ff; color: #c9d1d9; box-shadow: 0 0 0 0.2rem rgba(88,166,255,0.25); }
+        .form-control::placeholder { color: #6e7681; }
+        .btn-outline-secondary { color: #8b949e; border-color: #30363d; }
+        .btn-outline-secondary:hover { background-color: #21262d; color: #c9d1d9; border-color: #58a6ff; }
+        .pagination .page-link { background-color: #161b22; border-color: #30363d; color: #8b949e; }
+        .pagination .page-link:hover { background-color: #21262d; color: #58a6ff; }
+        .pagination .page-item.active .page-link { background-color: #1f6feb; border-color: #1f6feb; }
+        .alert-row:hover { cursor: pointer; }
+        pre { background-color: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; color: #c9d1d9; font-size: 0.8rem; max-height: 400px; overflow-y: auto; }
+        .severity-badge { font-size: 0.75rem; font-weight: 600; padding: 0.25em 0.6em; }
+        .refresh-indicator { font-size: 0.75rem; color: #6e7681; }
+        #toast-container { position: fixed; top: 70px; right: 20px; z-index: 1100; }
+        /* Dark theme overrides */
+        .text-muted { color: #8b949e !important; }
+        .breadcrumb-item a { color: #58a6ff; text-decoration: none; }
+        .breadcrumb-item a:hover { color: #79b8ff; }
+        .breadcrumb-item.active { color: #8b949e; }
+        .breadcrumb-item + .breadcrumb-item::before { color: #484f58; }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <i class="bi bi-shield-lock-fill me-2"></i>SOC Dashboard
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <span class="nav-link refresh-indicator">
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                        <span id="last-refresh">--</span>
+                    </span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2 col-lg-2 px-0 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.app_name == 'core' %}active{% endif %}" href="/">
+                        <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.app_name == 'alerts' %}active{% endif %}" href="/alerts/">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Alerts
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.app_name == 'incidents' %}active{% endif %}" href="/incidents/">
+                        <i class="bi bi-folder2-open me-2"></i>Incidents
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.app_name == 'notifications' %}active{% endif %}" href="/notifications/">
+                        <i class="bi bi-bell me-2"></i>Notifications
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.app_name == 'config_app' %}active{% endif %}" href="/settings/">
+                        <i class="bi bi-sliders me-2"></i>Settings
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <hr style="border-color: #30363d; margin: 0 16px;">
+                </li>
+                <li class="nav-item mt-2">
+                    <a class="nav-link" href="/admin/" target="_blank">
+                        <i class="bi bi-gear me-2"></i>Admin
+                    </a>
+                </li>
+                <li class="nav-item mt-3"><hr style="border-color:#30363d;margin:0 16px;"></li>
+                <li class="nav-item">
+                    <div class="px-3 py-2 d-flex align-items-center justify-content-between">
+                        <span class="small text-muted">
+                            <i class="bi bi-person-circle me-1"></i>{{ request.user.username }}
+                        </span>
+                        <form method="post" action="/logout/" class="m-0">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-secondary px-2 py-0"
+                                    title="Logout" style="font-size:0.75rem;">
+                                <i class="bi bi-box-arrow-right"></i>
+                            </button>
+                        </form>
+                    </div>
+                </li>
+                <li class="nav-item">
+                    <div class="px-3 pb-2 text-center">
+                        <span style="font-size:0.7rem; color:#484f58;">v{{ APP_VERSION }}</span>
+                        <span id="update-badge" style="display:none;">
+                            <br>
+                            <button id="update-btn" class="btn btn-xs mt-1 px-2 py-0"
+                                    style="font-size:0.7rem; background:#1f6feb33; border:1px solid #1f6feb; color:#58a6ff;"
+                                    onclick="showUpdateModal()">
+                                <i class="bi bi-arrow-up-circle me-1"></i><span id="update-label">Update available</span>
+                            </button>
+                        </span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-10 col-lg-10 main-content py-4 px-4">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Update last refresh time
+function updateRefreshTime() {
+    const now = new Date();
+    document.getElementById('last-refresh').textContent = now.toLocaleTimeString();
+}
+updateRefreshTime();
+setInterval(updateRefreshTime, 1000);
+
+// Chart.js dark defaults
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+</script>
+
+{% block extra_scripts %}{% endblock %}
+
+<!-- Update Modal -->
+<div class="modal fade" id="updateModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background:#161b22; border:1px solid #30363d;">
+            <div class="modal-header" style="border-bottom:1px solid #30363d;">
+                <h5 class="modal-title"><i class="bi bi-arrow-up-circle text-info me-2"></i>Update SOC Dashboard</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="update-close-btn"></button>
+            </div>
+            <div class="modal-body">
+                <div id="update-info">
+                    <p class="mb-1">พบ version ใหม่:</p>
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="badge bg-secondary">v{{ APP_VERSION }}</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-primary" id="update-new-ver">—</span>
+                    </div>
+                    <p class="small text-muted mb-0">ระบบจะ pull code ใหม่, migrate, collectstatic แล้ว restart อัตโนมัติ (ใช้เวลา ~30 วินาที)</p>
+                </div>
+                <div id="update-progress" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="spinner-border spinner-border-sm text-info"></span>
+                        <span id="update-step">กำลังอัปเดต...</span>
+                    </div>
+                    <pre id="update-log" style="max-height:200px; font-size:0.75rem; background:#0d1117; border:1px solid #30363d; padding:0.75rem; border-radius:6px; overflow-y:auto;"></pre>
+                </div>
+                <div id="update-done" style="display:none;">
+                    <div class="text-center py-2">
+                        <i class="bi bi-check-circle text-success" style="font-size:2rem;"></i>
+                        <p class="mt-2 mb-1">อัปเดตสำเร็จ!</p>
+                        <p class="small text-muted">Server กำลัง restart — โหลดหน้าใหม่ใน <span id="countdown">8</span> วินาที</p>
+                    </div>
+                </div>
+                <div id="update-error" style="display:none;">
+                    <div class="alert alert-danger mb-0" style="background:#3d1717; border-color:#da3633; color:#ff7b72;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <span id="update-error-msg"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #30363d;" id="update-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary btn-sm" id="confirm-update-btn" onclick="runUpdate()">
+                    <i class="bi bi-arrow-up-circle me-1"></i>อัปเดตเลย
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Version check (ทำงานครั้งแรกหลัง load) ──────────────────────────────────
+(function checkVersion() {
+    fetch('/check-update/')
+        .then(r => r.json())
+        .then(data => {
+            if (data.has_update && data.latest) {
+                document.getElementById('update-label').textContent = 'v' + data.latest;
+                document.getElementById('update-new-ver').textContent = 'v' + data.latest;
+                document.getElementById('update-badge').style.display = 'inline';
+                // เก็บ release URL ไว้
+                window._updateReleaseUrl = data.release_url || '';
+            }
+        })
+        .catch(() => {});
+})();
+
+function showUpdateModal() {
+    document.getElementById('update-info').style.display = 'block';
+    document.getElementById('update-progress').style.display = 'none';
+    document.getElementById('update-done').style.display = 'none';
+    document.getElementById('update-error').style.display = 'none';
+    document.getElementById('update-footer').style.display = 'flex';
+    document.getElementById('update-close-btn').disabled = false;
+    new bootstrap.Modal(document.getElementById('updateModal')).show();
+}
+
+function runUpdate() {
+    // ซ่อน info, แสดง progress
+    document.getElementById('update-info').style.display = 'none';
+    document.getElementById('update-footer').style.display = 'none';
+    document.getElementById('update-close-btn').disabled = true;
+    document.getElementById('update-progress').style.display = 'block';
+    document.getElementById('update-step').textContent = 'กำลัง pull code จาก GitHub...';
+    document.getElementById('update-log').textContent = '';
+
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    fetch('/do-update/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrf},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            document.getElementById('update-progress').style.display = 'none';
+            document.getElementById('update-done').style.display = 'block';
+            document.getElementById('update-close-btn').disabled = false;
+            // countdown
+            let sec = 8;
+            const tick = setInterval(() => {
+                sec--;
+                document.getElementById('countdown').textContent = sec;
+                if (sec <= 0) { clearInterval(tick); location.reload(); }
+            }, 1000);
+        } else {
+            document.getElementById('update-progress').style.display = 'none';
+            document.getElementById('update-error').style.display = 'block';
+            document.getElementById('update-error-msg').textContent = data.error || 'Unknown error';
+            document.getElementById('update-close-btn').disabled = false;
+            document.getElementById('update-footer').style.display = 'flex';
+        }
+    })
+    .catch(err => {
+        // Network error — อาจเป็นเพราะ server restart แล้ว (ปกติ)
+        document.getElementById('update-progress').style.display = 'none';
+        document.getElementById('update-done').style.display = 'block';
+        document.getElementById('update-close-btn').disabled = false;
+        let sec = 8;
+        const tick = setInterval(() => {
+            sec--;
+            document.getElementById('countdown').textContent = sec;
+            if (sec <= 0) { clearInterval(tick); location.reload(); }
+        }, 1000);
+    });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ form_title }} - SOC Dashboard{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/incidents/">Incidents</a></li>
+        {% if incident %}
+        <li class="breadcrumb-item"><a href="/incidents/{{ incident.pk }}/">{{ incident.thehive_case_id }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">{{ form_title }}</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-folder2-open me-2"></i>{{ form_title }}
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ action_url }}">
+                    {% csrf_token %}
+
+                    <!-- Alert -->
+                    <div class="mb-3">
+                        <label class="form-label">Alert <span class="text-danger">*</span></label>
+                        <select name="alert_id" class="form-select {% if errors.alert_id %}is-invalid{% endif %}">
+                            <option value="">— Select Alert —</option>
+                            {% for alert in alerts %}
+                            <option value="{{ alert.id }}"
+                                {% if values.alert_id == alert.id|stringformat:"s" or prefill_alert_id == alert.id|stringformat:"s" %}selected{% endif %}>
+                                #{{ alert.id }} — [{{ alert.severity }}] {{ alert.rule_description|truncatechars:60 }} ({{ alert.agent_name }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if errors.alert_id %}
+                        <div class="text-danger mt-1">{{ errors.alert_id }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- TheHive Case ID -->
+                    <div class="mb-3">
+                        <label class="form-label">TheHive Case ID <span class="text-danger">*</span></label>
+                        <input type="text" name="thehive_case_id" class="form-control {% if errors.thehive_case_id %}is-invalid{% endif %}"
+                               value="{{ values.thehive_case_id|default:'' }}" placeholder="e.g. #12345">
+                        {% if errors.thehive_case_id %}
+                        <div class="text-danger mt-1">{{ errors.thehive_case_id }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Title -->
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control {% if errors.title %}is-invalid{% endif %}"
+                               value="{{ values.title|default:'' }}" placeholder="Incident title">
+                        {% if errors.title %}
+                        <div class="text-danger mt-1">{{ errors.title }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status + Severity -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                {% for val, label in status_choices %}
+                                <option value="{{ val }}" {% if values.status == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Severity</label>
+                            <select name="severity" class="form-select">
+                                <option value="">— None —</option>
+                                {% for val, label in severity_choices %}
+                                <option value="{{ val }}" {% if values.severity == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- TheHive URL -->
+                    <div class="mb-4">
+                        <label class="form-label">TheHive URL <span class="text-muted">(optional)</span></label>
+                        <input type="url" name="thehive_url" class="form-control"
+                               value="{{ values.thehive_url|default:'' }}" placeholder="https://thehive.example.com/cases/...">
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="d-flex gap-2">
+                        {% if incident %}
+                        <a href="/incidents/{{ incident.pk }}/" class="btn btn-outline-secondary">Cancel</a>
+                        {% else %}
+                        <a href="/incidents/" class="btn btn-outline-secondary">Cancel</a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle me-1"></i>{{ submit_label }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+
+{% block title %}SOC Dashboard - Home{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-speedometer2 me-2 text-primary"></i>Security Overview</h4>
+    <small class="text-muted">Today &mdash; {{ request.META.SERVER_NAME }}</small>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card critical p-3">
+            <div class="stat-number text-danger">{{ critical_count }}</div>
+            <div class="stat-label mt-1">Critical Alerts</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card high p-3">
+            <div class="stat-number text-warning">{{ high_count }}</div>
+            <div class="stat-label mt-1">High Alerts</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card medium p-3">
+            <div class="stat-number text-info">{{ medium_count }}</div>
+            <div class="stat-label mt-1">Medium Alerts</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card total p-3">
+            <div class="stat-number text-primary">{{ total_count }}</div>
+            <div class="stat-label mt-1">Total Today</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-graph-up me-2"></i>Alert Timeline (Last 24h)</span>
+            </div>
+            <div class="card-body">
+                <canvas id="timelineChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-bar-chart me-2"></i>Top Rules (7 days)
+            </div>
+            <div class="card-body">
+                <canvas id="topRulesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Critical/High Alerts -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Recent Critical &amp; High Alerts (24h)</span>
+        <a href="/alerts/?severity=CRITICAL" class="btn btn-sm btn-outline-secondary">View All</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Rule</th>
+                        <th>Agent</th>
+                        <th>AI Analysis</th>
+                        <th>Time</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in recent_critical %}
+                    <tr class="alert-row" onclick="window.location='/alerts/{{ alert.id }}/'">
+                        <td>
+                            <span class="badge badge-{{ alert.severity }} severity-badge">{{ alert.severity }}</span>
+                        </td>
+                        <td>
+                            <small>{{ alert.rule_description|truncatechars:60 }}</small>
+                            <br><small class="text-muted">Rule {{ alert.rule_id }} (Level {{ alert.rule_level }})</small>
+                        </td>
+                        <td>
+                            <small>{{ alert.agent_name }}</small>
+                            {% if alert.agent_ip %}<br><small class="text-muted">{{ alert.agent_ip }}</small>{% endif %}
+                        </td>
+                        <td>
+                            {% if alert.ai_analysis %}
+                                <small class="text-success"><i class="bi bi-cpu me-1"></i>{{ alert.ai_analysis.attack_type|truncatechars:30 }}</small>
+                            {% else %}
+                                <small class="text-muted">—</small>
+                            {% endif %}
+                        </td>
+                        <td><small class="text-muted">{{ alert.timestamp|timesince }} ago</small></td>
+                        <td>
+                            <a href="/alerts/{{ alert.id }}/" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="bi bi-check-circle text-success me-2"></i>No critical or high alerts in the last 24 hours
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Timeline Chart
+const tlCtx = document.getElementById('timelineChart').getContext('2d');
+new Chart(tlCtx, {
+    type: 'line',
+    data: {
+        labels: {{ hourly_labels|safe }},
+        datasets: [
+            {
+                label: 'Critical',
+                data: {{ hourly_critical|safe }},
+                borderColor: '#da3633',
+                backgroundColor: 'rgba(218,54,51,0.1)',
+                tension: 0.3,
+                fill: true,
+            },
+            {
+                label: 'High',
+                data: {{ hourly_high|safe }},
+                borderColor: '#d29922',
+                backgroundColor: 'rgba(210,153,34,0.1)',
+                tension: 0.3,
+                fill: true,
+            },
+            {
+                label: 'Medium',
+                data: {{ hourly_medium|safe }},
+                borderColor: '#1f6feb',
+                backgroundColor: 'rgba(31,111,235,0.1)',
+                tension: 0.3,
+                fill: true,
+            },
+            {
+                label: 'Low',
+                data: {{ hourly_low|safe }},
+                borderColor: '#238636',
+                backgroundColor: 'rgba(35,134,54,0.1)',
+                tension: 0.3,
+                fill: true,
+            },
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#21262d' } },
+            x: { grid: { color: '#21262d' } }
+        }
+    }
+});
+
+// Top Rules Chart
+const trCtx = document.getElementById('topRulesChart').getContext('2d');
+const topRules = {{ top_rules|safe }};
+new Chart(trCtx, {
+    type: 'bar',
+    data: {
+        labels: topRules.map(r => r.rule_description.substring(0, 25) + '...'),
+        datasets: [{
+            label: 'Count',
+            data: topRules.map(r => r.count),
+            backgroundColor: '#1f6feb',
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { beginAtZero: true, grid: { color: '#21262d' } },
+            y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+    }
+});
+
+// Auto-refresh every 60 seconds
+setTimeout(() => location.reload(), 60000);
+</script>
+{% endblock %}

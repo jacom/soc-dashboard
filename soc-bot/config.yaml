@@ -1,0 +1,64 @@
+# SOC Bot Configuration
+# Rule thresholds and behavior settings
+
+severity_thresholds:
+  CRITICAL:
+    min_level: 12
+    max_level: 16
+  HIGH:
+    min_level: 8
+    max_level: 11
+  MEDIUM:
+    min_level: 6
+    max_level: 7
+  LOW:
+    min_level: 4
+    max_level: 5
+  INFO:
+    min_level: 0
+    max_level: 3
+
+# Actions per severity level
+actions:
+  CRITICAL:
+    - ai_analyze
+    - create_thehive
+    - notify_line
+    - save_dashboard
+  HIGH:
+    - ai_analyze
+    - create_thehive
+    - notify_line
+    - save_dashboard
+  MEDIUM:
+    - ai_analyze
+    - notify_line
+    - save_dashboard
+  LOW:
+    - save_dashboard
+  INFO:
+    - save_dashboard
+
+# Wazuh alert filtering
+wazuh:
+  min_rule_level: 3          # Skip alerts below this level
+  max_alerts_per_poll: 100   # Max alerts to fetch per polling cycle
+  lookback_minutes: 5        # Look back this many minutes when polling
+
+# Ollama settings
+ollama:
+  timeout: 120               # Request timeout in seconds
+  max_retries: 2             # Retry failed requests this many times
+
+# TheHive settings
+thehive:
+  tlp: 2                     # TLP: 0=WHITE, 1=GREEN, 2=AMBER, 3=RED
+  pap: 2                     # PAP level
+  tags:
+    - wazuh
+    - soc-bot
+    - automated
+
+# LINE Notify settings
+line:
+  min_severity: MEDIUM       # Minimum severity to send LINE notification

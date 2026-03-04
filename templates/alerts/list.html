@@ -1,0 +1,482 @@
+{% extends 'base.html' %}
+
+{% block title %}Alerts - SOC Dashboard{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Sort header links */
+    #alert-table thead th a {
+        color: #adbac7;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: color 0.15s;
+    }
+    #alert-table thead th a:hover { color: #79c0ff; }
+    #alert-table thead th a .bi-caret-down-fill,
+    #alert-table thead th a .bi-caret-up-fill { color: #79c0ff; }
+
+    /* Row left-border accent on hover */
+    #alert-table tbody .alert-row td:first-child {
+        border-left: 3px solid transparent;
+        transition: border-left-color 0.12s;
+    }
+    #alert-table tbody .alert-row:hover td:first-child { border-left-color: #388bfd; }
+
+    /* Expand log row */
+    #alert-table tbody tr[id^="log-row-"] td { padding: 0; border-top: none; }
+
+    /* Checkbox column */
+    #alert-table th.col-check, #alert-table td.col-check { width: 36px; text-align: center; }
+    #bulk-toolbar { display:none; }
+    #bulk-toolbar.visible { display: flex; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Security Alerts</h4>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <small class="text-muted">{{ alerts.paginator.count }} total alerts</small>
+
+        <!-- Dismissed toggle -->
+        {% if show_dismissed %}
+        <a href="/alerts/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-eye-slash me-1"></i>Hide Dismissed
+        </a>
+        {% else %}
+        <a href="?dismissed=1{% if filter_qs %}&{{ filter_qs }}{% endif %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-archive me-1"></i>Dismissed ({{ dismissed_count }})
+        </a>
+        {% endif %}
+
+        <!-- Rows per page -->
+        <div class="d-flex align-items-center gap-1">
+            <small class="text-muted text-nowrap">แถวต่อหน้า:</small>
+            <select class="form-select form-select-sm" style="width:auto;"
+                    onchange="location.href='/alerts/?per_page='+this.value+'&sort={{ filters.sort }}{% if filters.severity %}&severity={{ filters.severity }}{% endif %}{% if filters.agent %}&agent={{ filters.agent }}{% endif %}{% if filters.date_from %}&date_from={{ filters.date_from }}{% endif %}{% if filters.date_to %}&date_to={{ filters.date_to }}{% endif %}{% if filters.search %}&search={{ filters.search }}{% endif %}{% if show_dismissed %}&dismissed=1{% endif %}'">
+                <option value="50"   {% if per_page == 50   %}selected{% endif %}>50</option>
+                <option value="100"  {% if per_page == 100  %}selected{% endif %}>100</option>
+                <option value="500"  {% if per_page == 500  %}selected{% endif %}>500</option>
+                <option value="1000" {% if per_page == 1000 %}selected{% endif %}>1000</option>
+            </select>
+        </div>
+
+        <!-- Export CSV -->
+        <a href="/alerts/export/csv/?{% if filter_qs %}{{ filter_qs }}{% endif %}" class="btn btn-sm btn-outline-secondary" title="Export current filters to CSV">
+            <i class="bi bi-download me-1"></i>CSV
+        </a>
+
+        <div class="d-flex align-items-center gap-1 flex-wrap">
+            <select id="fetch-hours" class="form-select form-select-sm" style="width:auto;"
+                    onchange="document.getElementById('custom-date-wrap').style.display=this.value==='custom'?'flex':'none'">
+                <option value="1">ย้อนหลัง 1 ชม.</option>
+                <option value="6">ย้อนหลัง 6 ชม.</option>
+                <option value="24" selected>ย้อนหลัง 1 วัน</option>
+                <option value="72">ย้อนหลัง 3 วัน</option>
+                <option value="168">ย้อนหลัง 7 วัน</option>
+                <option value="336">ย้อนหลัง 14 วัน</option>
+                <option value="720">ย้อนหลัง 30 วัน</option>
+                <option value="custom">ระบุวันที่เอง...</option>
+            </select>
+            <div id="custom-date-wrap" class="d-none align-items-center gap-1" style="display:none!important">
+                <input type="datetime-local" id="fetch-date-from" class="form-control form-control-sm" style="width:auto;"
+                       title="ดึงข้อมูลตั้งแต่วันที่นี้">
+            </div>
+            <button id="fetch-btn" class="btn btn-sm btn-outline-primary" title="ดึง alerts จาก Wazuh">
+                <i class="bi bi-cloud-download me-1"></i>Fetch from Wazuh
+            </button>
+        </div>
+        <span id="fetch-result" style="font-size:0.82rem;"></span>
+    </div>
+</div>
+
+<!-- Bulk action toolbar (shown when checkboxes selected) -->
+<div id="bulk-toolbar" class="alert alert-secondary py-2 px-3 mb-2 d-flex align-items-center gap-3" style="border:1px solid #30363d; background:#161b22;">
+    <span id="bulk-count" class="small text-muted">0 selected</span>
+    {% if show_dismissed %}
+    <button class="btn btn-sm btn-outline-success" onclick="bulkUndismiss()">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+    </button>
+    {% else %}
+    <button class="btn btn-sm btn-outline-warning" onclick="bulkDismiss()">
+        <i class="bi bi-archive me-1"></i>Dismiss selected
+    </button>
+    {% endif %}
+    <button class="btn btn-sm btn-link text-muted p-0" onclick="clearSelection()">Clear</button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end" id="filter-form">
+            <input type="hidden" name="sort" value="{{ filters.sort }}">
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <div class="col-sm-6 col-md-2">
+                <select name="severity" class="form-select form-select-sm">
+                    <option value="">All Severities</option>
+                    {% for val, label in severity_choices %}
+                    <option value="{{ val }}" {% if filters.severity == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <select name="agent" class="form-select form-select-sm">
+                    <option value="">All Agents</option>
+                    {% for agent in agents %}
+                    <option value="{{ agent }}" {% if filters.agent == agent %}selected{% endif %}>{{ agent }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}" placeholder="From date">
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}" placeholder="To date">
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control form-control-sm" value="{{ filters.search }}" placeholder="Search rule description...">
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-fill">
+                    <i class="bi bi-search"></i>
+                </button>
+                <a href="/alerts/" class="btn btn-sm btn-outline-secondary flex-fill">
+                    <i class="bi bi-x"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alert Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="alert-table">
+                <thead>
+                    <tr>
+                        <th class="col-check">
+                            <input type="checkbox" id="check-all" class="form-check-input" title="Select all">
+                        </th>
+                        <!-- Severity sortable -->
+                        <th style="width:90px">
+                            <a href="/alerts/?sort={% if filters.sort == 'severity' %}-severity{% else %}severity{% endif %}{% if filter_qs %}&{{ filter_qs }}{% endif %}"
+                               class="text-reset text-decoration-none d-flex align-items-center gap-1">
+                                Severity
+                                {% if filters.sort == 'severity' %}<i class="bi bi-caret-down-fill text-primary" style="font-size:.7em"></i>
+                                {% elif filters.sort == '-severity' %}<i class="bi bi-caret-up-fill text-primary" style="font-size:.7em"></i>
+                                {% else %}<i class="bi bi-chevron-expand text-muted" style="font-size:.7em;opacity:.4"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>Rule / Description</th>
+                        <!-- Agent sortable -->
+                        <th style="width:160px">
+                            <a href="/alerts/?sort={% if filters.sort == 'agent' %}-agent{% else %}agent{% endif %}{% if filter_qs %}&{{ filter_qs }}{% endif %}"
+                               class="text-reset text-decoration-none d-flex align-items-center gap-1">
+                                Agent
+                                {% if filters.sort == 'agent' %}<i class="bi bi-caret-up-fill text-primary" style="font-size:.7em"></i>
+                                {% elif filters.sort == '-agent' %}<i class="bi bi-caret-down-fill text-primary" style="font-size:.7em"></i>
+                                {% else %}<i class="bi bi-chevron-expand text-muted" style="font-size:.7em;opacity:.4"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th style="width:130px">Source IP</th>
+                        <th style="width:120px">AI Analysis</th>
+                        <!-- Time sortable -->
+                        <th style="width:150px">
+                            <a href="/alerts/?sort={% if filters.sort == 'time' or filters.sort == '' %}-time{% else %}time{% endif %}{% if filter_qs %}&{{ filter_qs }}{% endif %}"
+                               class="text-reset text-decoration-none d-flex align-items-center gap-1">
+                                Time
+                                {% if filters.sort == '-time' %}<i class="bi bi-caret-up-fill text-primary" style="font-size:.7em"></i>
+                                {% elif filters.sort == 'time' or filters.sort == '' %}<i class="bi bi-caret-down-fill text-primary" style="font-size:.7em"></i>
+                                {% else %}<i class="bi bi-chevron-expand text-muted" style="font-size:.7em;opacity:.4"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in alerts %}
+                    <!-- Main row -->
+                    <tr class="alert-row" style="cursor:pointer" onclick="window.location='/alerts/{{ alert.id }}/'">
+                        <td class="col-check" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="form-check-input alert-check" value="{{ alert.id }}" onchange="updateBulkToolbar()">
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ alert.severity }} severity-badge">{{ alert.severity }}</span>
+                            <br><small class="text-muted">Lvl {{ alert.rule_level }}</small>
+                        </td>
+                        <td>
+                            <div>{{ alert.rule_description|truncatechars:80 }}</div>
+                            <small class="text-muted">
+                                Rule {{ alert.rule_id }}
+                                {% if alert.mitre_id %} &bull; MITRE: {{ alert.mitre_id }}{% endif %}
+                            </small>
+                        </td>
+                        <td>
+                            <div>{{ alert.agent_name }}</div>
+                            {% if alert.agent_ip %}<small class="text-muted">{{ alert.agent_ip }}</small>{% endif %}
+                        </td>
+                        <td>
+                            {% if alert.src_ip %}
+                                <small>{{ alert.src_ip }}</small>
+                            {% else %}
+                                <small class="text-muted">—</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if alert.ai_analysis %}
+                                <span class="badge bg-success" title="{{ alert.ai_analysis.attack_type }}">
+                                    <i class="bi bi-cpu me-1"></i>Done
+                                </span>
+                                <br><small class="text-muted">FP: {{ alert.ai_analysis.false_positive_pct }}%</small>
+                            {% else %}
+                                <small class="text-muted">—</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ alert.timestamp|date:"M d, H:i" }}</small>
+                        </td>
+                        <td onclick="event.stopPropagation()">
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-outline-secondary" title="View raw log"
+                                        onclick="toggleLog({{ alert.id }})">
+                                    <i class="bi bi-code-square"></i>
+                                </button>
+                                <a href="/alerts/{{ alert.id }}/" class="btn btn-sm btn-outline-secondary" title="View detail">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if show_dismissed %}
+                                <button class="btn btn-sm btn-outline-success" title="Restore alert"
+                                        onclick="restoreAlert({{ alert.id }})">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Expandable log row -->
+                    <tr id="log-row-{{ alert.id }}" style="display:none">
+                        <td colspan="8" class="p-0">
+                            <div class="p-2" style="background:#0d1117; border-top:1px solid #30363d">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">
+                                        <i class="bi bi-code-square me-1"></i>Raw Log — Alert #{{ alert.id }}
+                                        &nbsp;·&nbsp; Wazuh ID: {{ alert.wazuh_id|truncatechars:40 }}
+                                    </small>
+                                    <button class="btn btn-sm btn-link text-muted p-0" onclick="toggleLog({{ alert.id }})">
+                                        <i class="bi bi-x-lg" style="font-size:.8em"></i>
+                                    </button>
+                                </div>
+                                <pre id="log-pre-{{ alert.id }}"
+                                     class="mb-0 small"
+                                     style="color:#58a6ff; max-height:320px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;">Loading...</pre>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                            No alerts found matching your filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if alerts.has_other_pages %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center flex-wrap">
+        <li class="page-item {% if not alerts.has_previous %}disabled{% endif %}">
+            <a class="page-link" href="{% if alerts.has_previous %}?page={{ alerts.previous_page_number }}&sort={{ filters.sort }}{% if filter_qs %}&{{ filter_qs }}{% endif %}{% else %}#{% endif %}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% for p in page_range %}
+            {% if p == '...' %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% else %}
+            <li class="page-item {% if p == alerts.number %}active{% endif %}">
+                <a class="page-link" href="?page={{ p }}&sort={{ filters.sort }}{% if filter_qs %}&{{ filter_qs }}{% endif %}">{{ p }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not alerts.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{% if alerts.has_next %}?page={{ alerts.next_page_number }}&sort={{ filters.sort }}{% if filter_qs %}&{{ filter_qs }}{% endif %}{% else %}#{% endif %}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+    <p class="text-center" style="font-size:0.82rem; color:#8b949e;">
+        Page <span style="color:#c9d1d9; font-weight:600;">{{ alerts.number }}</span>
+        of <span style="color:#c9d1d9; font-weight:600;">{{ alerts.paginator.num_pages }}</span>
+        &nbsp;·&nbsp;
+        <span style="color:#58a6ff; font-weight:600;">{{ alerts.paginator.count }}</span> alerts
+    </p>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ─── Fetch from Wazuh ────────────────────────────────────────────────
+document.getElementById('fetch-hours').addEventListener('change', function() {
+    const wrap = document.getElementById('custom-date-wrap');
+    if (this.value === 'custom') {
+        wrap.style.removeProperty('display');
+        wrap.classList.remove('d-none');
+    } else {
+        wrap.style.setProperty('display', 'none', 'important');
+    }
+});
+
+document.getElementById('fetch-btn').addEventListener('click', async function () {
+    const btn = this;
+    const resultEl = document.getElementById('fetch-result');
+    const hoursEl = document.getElementById('fetch-hours');
+    const isCustom = hoursEl.value === 'custom';
+
+    if (isCustom && !document.getElementById('fetch-date-from').value) {
+        resultEl.innerHTML = '<span class="text-warning">กรุณาระบุวันที่</span>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Fetching...';
+    resultEl.innerHTML = '';
+
+    const formData = new FormData();
+    if (isCustom) {
+        formData.append('date_from', document.getElementById('fetch-date-from').value);
+    } else {
+        formData.append('hours', hoursEl.value);
+    }
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    try {
+        const resp = await fetch('/alerts/fetch-wazuh/', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.ok) {
+            resultEl.innerHTML = `<span class="text-success">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                +${data.created} new &nbsp;|&nbsp; ${data.fetched} fetched &nbsp;|&nbsp; ${data.skipped} skipped
+            </span>`;
+            if (data.created > 0) setTimeout(() => location.reload(), 1200);
+        } else {
+            resultEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${data.error}</span>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<span class="text-danger">Request failed: ${e}</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cloud-download me-1"></i>Fetch from Wazuh';
+    }
+});
+
+// ─── Bulk dismiss / undismiss ─────────────────────────────────────────
+const csrfToken = '{{ csrf_token }}';
+
+document.getElementById('check-all').addEventListener('change', function() {
+    document.querySelectorAll('.alert-check').forEach(cb => {
+        cb.checked = this.checked;
+    });
+    updateBulkToolbar();
+});
+
+function updateBulkToolbar() {
+    const checked = document.querySelectorAll('.alert-check:checked');
+    const toolbar = document.getElementById('bulk-toolbar');
+    document.getElementById('bulk-count').textContent = checked.length + ' selected';
+    if (checked.length > 0) {
+        toolbar.classList.add('visible');
+    } else {
+        toolbar.classList.remove('visible');
+    }
+}
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.alert-check:checked')).map(cb => cb.value);
+}
+
+function clearSelection() {
+    document.querySelectorAll('.alert-check').forEach(cb => cb.checked = false);
+    document.getElementById('check-all').checked = false;
+    updateBulkToolbar();
+}
+
+async function bulkDismiss() {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    if (!confirm('Dismiss ' + ids.length + ' alert(s)?')) return;
+    const resp = await fetch('/alerts/bulk-dismiss/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({ids}),
+    });
+    const data = await resp.json();
+    if (data.ok) location.reload();
+    else alert('Error: ' + data.error);
+}
+
+async function bulkUndismiss() {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    const resp = await fetch('/alerts/bulk-undismiss/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({ids}),
+    });
+    const data = await resp.json();
+    if (data.ok) location.href = '/alerts/';
+    else alert('Error: ' + data.error);
+}
+
+async function restoreAlert(id) {
+    const resp = await fetch('/alerts/bulk-undismiss/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({ids: [id]}),
+    });
+    const data = await resp.json();
+    if (data.ok) location.href = '/alerts/';
+    else alert('Error: ' + (data.error || 'Unknown'));
+}
+
+// ─── Expand / collapse raw log ────────────────────────────────────────
+const _logCache = {};
+
+async function toggleLog(alertId) {
+    const row = document.getElementById('log-row-' + alertId);
+    const pre = document.getElementById('log-pre-' + alertId);
+
+    if (row.style.display !== 'none') {
+        row.style.display = 'none';
+        return;
+    }
+
+    row.style.display = '';
+
+    if (_logCache[alertId]) {
+        pre.textContent = _logCache[alertId];
+        return;
+    }
+
+    pre.textContent = 'Loading…';
+    try {
+        const resp = await fetch('/alerts/' + alertId + '/raw/');
+        const data = await resp.json();
+        const text = JSON.stringify(data, null, 2);
+        _logCache[alertId] = text;
+        pre.textContent = text;
+    } catch (e) {
+        pre.textContent = 'Error loading raw data: ' + e;
+    }
+}
+</script>
+{% endblock %}

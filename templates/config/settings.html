@@ -1,0 +1,959 @@
+{% extends "base.html" %}
+
+{% block title %}Settings — SOC Dashboard{% endblock %}
+
+{% block extra_head %}
+<style>
+    .tab-content .card { margin-bottom: 1rem; }
+    .nav-tabs { border-bottom: 1px solid #30363d; }
+    .nav-tabs .nav-link { color: #8b949e; border: 1px solid transparent; border-radius: 6px 6px 0 0; padding: 0.5rem 1.2rem; }
+    .nav-tabs .nav-link:hover { color: #c9d1d9; border-color: transparent; background-color: #21262d; }
+    .nav-tabs .nav-link.active { color: #58a6ff; background-color: #161b22; border-color: #30363d #30363d #161b22; }
+    .tab-content { padding-top: 1.5rem; }
+    .field-label { font-size: 0.85rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; }
+    .field-description { font-size: 0.78rem; color: #6e7681; margin-top: 0.25rem; }
+    .connection-result { font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.4em; }
+    .input-group .btn { border-color: #30363d; }
+    .bot-status-badge { font-size: 1rem; padding: 0.4em 1em; }
+    .group-icon { font-size: 1.2rem; margin-right: 0.4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1" style="font-size:0.85rem; color:#6e7681;">
+                <li class="breadcrumb-item"><a href="/" style="color:#58a6ff;">Dashboard</a></li>
+                <li class="breadcrumb-item active" style="color:#8b949e;">Settings</li>
+            </ol>
+        </nav>
+        <h4 class="mb-0"><i class="bi bi-sliders me-2" style="color:#58a6ff;"></i>Integration Settings</h4>
+        <p class="text-muted mb-0" style="font-size:0.85rem;">Configure credentials for Wazuh, Ollama, TheHive, LINE and system parameters.</p>
+    </div>
+</div>
+
+<form method="post" id="settings-form">
+    {% csrf_token %}
+
+    <div class="row">
+        <!-- Left: Tabs -->
+        <div class="col-lg-9">
+
+            <!-- Tabs nav -->
+            <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-wazuh-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-wazuh" type="button" role="tab">
+                        <i class="bi bi-shield-check group-icon"></i>Wazuh
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-ollama-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-ollama" type="button" role="tab">
+                        <i class="bi bi-cpu group-icon"></i>Ollama
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-openai-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-openai" type="button" role="tab">
+                        <i class="bi bi-chat-square-dots group-icon"></i>Chat AI
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-thehive-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-thehive" type="button" role="tab">
+                        <i class="bi bi-bug group-icon"></i>TheHive
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-line-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-line" type="button" role="tab">
+                        <i class="bi bi-chat-dots group-icon"></i>LINE
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-system-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-system" type="button" role="tab">
+                        <i class="bi bi-gear group-icon"></i>System
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="settingsTabContent">
+
+                <!-- Wazuh Tab -->
+                <div class="tab-pane fade show active" id="tab-wazuh" role="tabpanel">
+
+                    <div class="connection-result mb-2" id="result-wazuh"></div>
+
+                    <div class="row g-3">
+                        <!-- Manager API card -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="bi bi-hdd-network me-2" style="color:#58a6ff;"></i>
+                                        Manager API
+                                        <small class="text-muted ms-1">:55000</small>
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary test-btn" data-group="wazuh">
+                                        <i class="bi bi-plug me-1"></i>Test
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    {% for cfg in grouped.wazuh %}{% if 'INDEXER' not in cfg.key %}
+                                    <div class="mb-3">
+                                        <div class="field-label">{{ cfg.label }}</div>
+                                        {% if cfg.is_secret %}
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                                   value="{{ cfg.value }}" autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary toggle-secret" type="button" title="Show/hide">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        {% else %}
+                                        <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                               value="{{ cfg.value }}">
+                                        {% endif %}
+                                        {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                                    </div>
+                                    {% endif %}{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Indexer card -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <i class="bi bi-database me-2" style="color:#58a6ff;"></i>
+                                    Indexer (OpenSearch)
+                                    <small class="text-muted ms-1">:9200</small>
+                                </div>
+                                <div class="card-body">
+                                    {% for cfg in grouped.wazuh %}{% if 'INDEXER' in cfg.key %}
+                                    <div class="mb-3">
+                                        <div class="field-label">{{ cfg.label }}</div>
+                                        {% if cfg.is_secret %}
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                                   value="{{ cfg.value }}" autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary toggle-secret" type="button" title="Show/hide">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        {% else %}
+                                        <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                               value="{{ cfg.value }}">
+                                        {% endif %}
+                                        {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                                    </div>
+                                    {% endif %}{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Ollama Tab -->
+                <div class="tab-pane fade" id="tab-ollama" role="tabpanel">
+                    <div class="row g-3">
+                        <!-- Config card -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-cpu me-2" style="color:#58a6ff;"></i>Ollama LLM</span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary test-btn" data-group="ollama">
+                                        <i class="bi bi-plug me-1"></i>Test Connection
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="connection-result" id="result-ollama"></div>
+                                    <!-- Active model banner -->
+                                    {% for cfg in grouped.ollama %}{% if cfg.key == 'OLLAMA_MODEL' %}
+                                    <div class="d-flex align-items-center gap-2 mb-3 p-2 rounded"
+                                         style="background:#0d2d16; border:1px solid #238636; font-size:0.85rem;">
+                                        <i class="bi bi-broadcast text-success"></i>
+                                        <span class="text-muted">กำลังใช้อยู่:</span>
+                                        <span class="badge bg-success">{{ cfg.value }}</span>
+                                    </div>
+                                    {% endif %}{% endfor %}
+                                    {% for cfg in grouped.ollama %}
+                                    <div class="mb-3">
+                                        <div class="field-label">{{ cfg.label }}</div>
+                                        {% if cfg.key == 'OLLAMA_MODEL' %}
+                                        <!-- Model selector dropdown -->
+                                        <div class="input-group">
+                                            <select id="ollama-model-select" class="form-select"
+                                                    onchange="document.getElementById('cfg-ollama-model').value = this.value">
+                                                <option value="{{ cfg.value }}" selected>{{ cfg.value }}</option>
+                                            </select>
+                                            <button class="btn btn-outline-secondary" type="button"
+                                                    onclick="refreshOllamaModels()" title="Reload models from Ollama">
+                                                <i class="bi bi-arrow-clockwise"></i>
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="cfg_OLLAMA_MODEL" id="cfg-ollama-model" value="{{ cfg.value }}">
+                                        <div class="field-description mt-1" id="model-select-hint">
+                                            <i class="bi bi-info-circle me-1"></i>คลิก <i class="bi bi-arrow-clockwise"></i> เพื่อโหลด model ที่ติดตั้งแล้วจาก Ollama
+                                        </div>
+                                        {% elif cfg.is_secret %}
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                                   value="{{ cfg.value }}" autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary toggle-secret" type="button" title="Show/hide">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        {% else %}
+                                        <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                               value="{{ cfg.value }}">
+                                        {% endif %}
+                                        {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Analysis Coverage card -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-graph-up me-2" style="color:#58a6ff;"></i>AI Analysis Coverage</span>
+                                    <button type="button" class="btn btn-sm btn-outline-success" id="batch-analyze-btn">
+                                        <i class="bi bi-cpu me-1"></i>Batch Analyze
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="ollama-stats" class="text-muted" style="font-size:0.85rem;">
+                                        <i class="bi bi-hourglass-split me-1"></i>Loading…
+                                    </div>
+                                    <!-- Live progress (shown during batch analyze) -->
+                                    <div id="batch-progress" style="display:none; margin-top:12px;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:0.82rem;">
+                                            <span id="batch-progress-label" class="text-info">
+                                                <span class="spinner-border spinner-border-sm me-1"></span>กำลังวิเคราะห์…
+                                            </span>
+                                            <span id="batch-progress-count" class="text-muted"></span>
+                                        </div>
+                                        <div class="progress mb-1" style="height:6px; background:#21262d;">
+                                            <div id="batch-progress-bar" class="progress-bar bg-info progress-bar-striped progress-bar-animated" style="width:0%"></div>
+                                        </div>
+                                        <small class="text-muted" id="batch-queue-label"></small>
+                                    </div>
+                                    <div id="batch-result" class="mt-2 small" style="display:none"></div>
+                                    <div class="field-description mt-3">
+                                        Batch Analyze จะส่ง alert ที่ยังไม่มี AI Analysis (CRITICAL/HIGH/MEDIUM) ไปให้ Ollama วิเคราะห์ใน background
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat AI (OpenAI-compatible) Tab -->
+                <div class="tab-pane fade" id="tab-openai" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-chat-square-dots me-2" style="color:#58a6ff;"></i>Chat AI (OpenAI-compatible)</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary test-btn" data-group="openai">
+                                <i class="bi bi-plug me-1"></i>Test Connection
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="connection-result" id="result-openai"></div>
+
+                            <!-- Active config banner -->
+                            {% with openai_cfg=grouped.openai %}
+                            {% for cfg in openai_cfg %}{% if cfg.key == 'OPENAI_URL' %}{% with cur_url=cfg.value %}
+                            {% for cfg2 in openai_cfg %}{% if cfg2.key == 'OPENAI_MODEL' %}
+                            <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3"
+                                 style="background:#161b22; border:1px solid #30363d; font-size:0.85rem;">
+                                <i class="bi bi-broadcast text-success"></i>
+                                <div>
+                                    <span class="text-muted">กำลังใช้อยู่:</span>
+                                    <span class="badge bg-success ms-1">{{ cfg2.value }}</span>
+                                    <span class="text-muted ms-1">@</span>
+                                    <code style="color:#58a6ff;">{{ cur_url }}</code>
+                                    {% if 'openai.com' in cur_url %}
+                                    <span class="badge bg-primary ms-1">OpenAI Cloud</span>
+                                    {% elif 'localhost' in cur_url or '127.0.0.1' in cur_url %}
+                                    <span class="badge bg-secondary ms-1">Ollama Local</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark ms-1">Custom API</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}{% endfor %}
+                            {% endwith %}{% endif %}{% endfor %}
+                            {% endwith %}
+
+                            <div class="field-description mb-3" style="color:#6e7681;">
+                                <i class="bi bi-info-circle me-1"></i>
+                                <strong style="color:#8b949e;">ตัวอย่างการตั้งค่า:</strong><br>
+                                • Ollama local: URL = <code>http://localhost:11434</code>, Model = <code>qwen2.5:1.5b</code>, API Key = ว่าง<br>
+                                • OpenAI: URL = <code>https://api.openai.com</code>, Model = <code>gpt-4o-mini</code>, API Key = <code>sk-...</code>
+                            </div>
+                            {% for cfg in grouped.openai %}
+                            <div class="mb-3">
+                                <div class="field-label">{{ cfg.label }}</div>
+                                {% if cfg.key == 'OPENAI_MODEL' %}
+                                <select class="form-select" name="cfg_OPENAI_MODEL">
+                                    <optgroup label="OpenAI Cloud">
+                                        <option value="gpt-5.2"      {% if cfg.value == "gpt-5.2"      %}selected{% endif %}>gpt-5.2 (2025-12-11)</option>
+                                        <option value="gpt-4o-mini"  {% if cfg.value == "gpt-4o-mini"  %}selected{% endif %}>gpt-4o-mini</option>
+                                        <option value="gpt-4o"       {% if cfg.value == "gpt-4o"       %}selected{% endif %}>gpt-4o</option>
+                                    </optgroup>
+                                    <optgroup label="Ollama Local">
+                                        <option value="qwen2.5:1.5b" {% if cfg.value == "qwen2.5:1.5b" %}selected{% endif %}>qwen2.5:1.5b</option>
+                                        <option value="openchat:latest" {% if cfg.value == "openchat:latest" %}selected{% endif %}>openchat:latest</option>
+                                    </optgroup>
+                                    {% if cfg.value != "gpt-5.2" and cfg.value != "gpt-4o-mini" and cfg.value != "gpt-4o" and cfg.value != "qwen2.5:1.5b" and cfg.value != "openchat:latest" %}
+                                    <optgroup label="Current">
+                                        <option value="{{ cfg.value }}" selected>{{ cfg.value }}</option>
+                                    </optgroup>
+                                    {% endif %}
+                                </select>
+                                {% elif cfg.is_secret %}
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                           value="{{ cfg.value }}" autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary toggle-secret" type="button" title="Show/hide">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                {% else %}
+                                <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                       value="{{ cfg.value }}">
+                                {% endif %}
+                                {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TheHive Tab -->
+                <div class="tab-pane fade" id="tab-thehive" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-bug me-2" style="color:#58a6ff;"></i>TheHive</span>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary test-btn" data-group="thehive">
+                                    <i class="bi bi-plug me-1"></i>Test Connection
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="connection-result" id="result-thehive"></div>
+                            {% for cfg in grouped.thehive %}
+                            <div class="mb-3">
+                                <div class="field-label">{{ cfg.label }}</div>
+                                {% if cfg.is_secret %}
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                           value="{{ cfg.value }}" autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary toggle-secret" type="button"
+                                            title="Show/hide">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                {% else %}
+                                <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                       value="{{ cfg.value }}">
+                                {% endif %}
+                                {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LINE Tab -->
+                <div class="tab-pane fade" id="tab-line" role="tabpanel">
+                    <div class="row g-3">
+
+                        <!-- คอลัมน์ซ้าย: MOPH Notify credentials -->
+                        <div class="col-md-5">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="bi bi-hospital me-2" style="color:#58a6ff;"></i>MOPH Notify
+                                        <small class="text-muted ms-1">CMS MOPH</small>
+                                    </span>
+                                    <div class="d-flex gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary test-btn" data-group="moph">
+                                            <i class="bi bi-plug me-1"></i>Test
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="moph-flex-btn">
+                                            <i class="bi bi-send me-1"></i>Send Flex
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="connection-result" id="result-moph"></div>
+                                    <div id="moph-flex-result" class="mt-2" style="display:none">
+                                        <div id="moph-flex-msg" class="small mb-1"></div>
+                                        <div class="field-label mt-2">API Response:</div>
+                                        <pre id="moph-flex-api" class="small" style="max-height:100px;"></pre>
+                                        <details class="mt-1">
+                                            <summary class="field-description" style="cursor:pointer;">ดู Payload ที่ส่ง</summary>
+                                            <pre id="moph-flex-payload" class="small" style="max-height:160px;"></pre>
+                                        </details>
+                                    </div>
+                                    <div class="field-description mb-3">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        ส่งผ่าน <code>POST {BASE_URL}/api/notify/send</code><br>
+                                        Header: <code>client-key</code> และ <code>secret-key</code>
+                                    </div>
+                                    {% for cfg in grouped.moph %}{% if 'IMG' not in cfg.key %}
+                                    <div class="mb-3">
+                                        <div class="field-label">{{ cfg.label }}</div>
+                                        {% if cfg.is_secret %}
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                                   value="{{ cfg.value }}" autocomplete="new-password">
+                                            <button class="btn btn-outline-secondary toggle-secret" type="button" title="Show/hide">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                        {% else %}
+                                        <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                               value="{{ cfg.value }}">
+                                        {% endif %}
+                                        {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                                    </div>
+                                    {% endif %}{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- คอลัมน์ขวา: Header Image URLs -->
+                        <div class="col-md-7">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <i class="bi bi-image me-2" style="color:#58a6ff;"></i>Header Image URLs
+                                    <small class="text-muted ms-1">ตามระดับความรุนแรง</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="field-description mb-3">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        รูปภาพ header ใน LINE Flex Message จะเปลี่ยนตาม severity ของ alert
+                                    </div>
+                                    {% for cfg in moph_img_ordered %}
+                                    <div class="mb-2">
+                                        <div class="input-group">
+                                            <span class="input-group-text" style="min-width:90px; border-color:#30363d; background:#21262d;">
+                                                {% if cfg.severity == 'CRITICAL' %}<span class="badge bg-danger w-100">CRITICAL</span>
+                                                {% elif cfg.severity == 'HIGH' %}<span class="badge bg-warning text-dark w-100">HIGH</span>
+                                                {% elif cfg.severity == 'MEDIUM' %}<span class="badge bg-primary w-100">MEDIUM</span>
+                                                {% elif cfg.severity == 'LOW' %}<span class="badge bg-secondary w-100">LOW</span>
+                                                {% else %}<span class="badge w-100" style="background:#3d444d;">INFO</span>{% endif %}
+                                            </span>
+                                            <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                                   value="{{ cfg.value }}" placeholder="https://...">
+                                            <button class="btn btn-outline-secondary" type="button"
+                                                    onclick="if(this.previousElementSibling.value) window.open(this.previousElementSibling.value,'_blank')"
+                                                    title="Preview">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- System Tab -->
+                <div class="tab-pane fade" id="tab-system" role="tabpanel">
+
+                    <!-- Auto-dismiss card -->
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-archive me-2" style="color:#f0883e;"></i>Auto-dismiss</span>
+                            <button type="button" class="btn btn-sm btn-outline-warning" id="autodismiss-run-btn" onclick="runAutoDismiss()">
+                                <i class="bi bi-play-circle me-1"></i>Run Now
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="field-label">เปิดใช้ Auto-dismiss</div>
+                                    <select class="form-select" name="cfg_AUTODISMISS_ENABLED">
+                                        <option value="true"  {% if autodismiss_enabled == 'true'  %}selected{% endif %}>เปิด (Enabled)</option>
+                                        <option value="false" {% if autodismiss_enabled != 'true'  %}selected{% endif %}>ปิด (Disabled)</option>
+                                    </select>
+                                    <div class="field-description">เปิดให้ soc-fetcher dismiss อัตโนมัติทุกวัน</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="field-label">Dismiss หลังกี่วัน</div>
+                                    <input type="number" class="form-control" name="cfg_AUTODISMISS_DAYS"
+                                           value="{{ autodismiss_days }}" min="1" max="3650">
+                                    <div class="field-description">Alert ที่เก่ากว่านี้จะถูก dismiss (ค่าแนะนำ: 90)</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="field-label">Severity ที่ Auto-dismiss</div>
+                                    <div class="d-flex flex-wrap gap-2 mt-1">
+                                        {% for sev in autodismiss_sev_choices %}
+                                        <div class="form-check">
+                                            <input class="form-check-input sev-check" type="checkbox"
+                                                   value="{{ sev }}" id="sev-{{ sev }}"
+                                                   {% if sev in autodismiss_sev_list %}checked{% endif %}
+                                                   onchange="updateSevHidden()">
+                                            <label class="form-check-label" for="sev-{{ sev }}">{{ sev }}</label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <input type="hidden" name="cfg_AUTODISMISS_SEVERITIES" id="autodismiss-severities-hidden" value="{{ autodismiss_severities }}">
+                                    <div class="field-description">เลือก severity ที่ต้องการ auto-dismiss</div>
+                                </div>
+                            </div>
+                            <div id="autodismiss-result" class="mt-3 small" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Other system params (excludes autodismiss keys) -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span><i class="bi bi-gear me-2" style="color:#58a6ff;"></i>System Parameters</span>
+                        </div>
+                        <div class="card-body">
+                            {% for cfg in grouped.system %}
+                            <div class="mb-3">
+                                <div class="field-label">{{ cfg.label }}</div>
+                                {% if cfg.is_secret %}
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="cfg_{{ cfg.key }}"
+                                           value="{{ cfg.value }}" autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary toggle-secret" type="button"
+                                            title="Show/hide">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                {% else %}
+                                <input type="text" class="form-control" name="cfg_{{ cfg.key }}"
+                                       value="{{ cfg.value }}">
+                                {% endif %}
+                                {% if cfg.description %}<div class="field-description">{{ cfg.description }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /tab-content -->
+
+            <!-- Save button -->
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-floppy me-2"></i>Save All Settings
+                </button>
+            </div>
+
+        </div><!-- /col-lg-9 -->
+
+        <!-- Right: Bot Status -->
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-robot me-2" style="color:#58a6ff;"></i>SOC Bot Status
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <span id="bot-status-badge"
+                              class="badge bg-{{ bot_status.badge }} bot-status-badge">
+                            {% if bot_status.status == 'active' %}<i class="bi bi-circle-fill me-1"></i>{% elif bot_status.status == 'failed' %}<i class="bi bi-x-circle-fill me-1"></i>{% else %}<i class="bi bi-circle me-1"></i>{% endif %}
+                            {{ bot_status.label }}
+                        </span>
+                    </div>
+                    <p class="text-muted" style="font-size:0.8rem;">
+                        Service: <code style="color:#58a6ff;">soc-bot.service</code>
+                    </p>
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="restart-bot-btn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Restart Bot
+                    </button>
+                    <div id="restart-result" class="mt-2" style="font-size:0.82rem;"></div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>About
+                </div>
+                <div class="card-body" style="font-size:0.82rem; color:#8b949e;">
+                    <p>Changes are saved to the database and written to:<br>
+                    <code style="font-size:0.78rem;">/home/jong2/soc-bot/.env</code></p>
+                    <p class="mb-0">The bot must be restarted to pick up new credentials.</p>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /row -->
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+// Auto-set OPENAI_URL based on selected model
+(function() {
+    const modelSel = document.querySelector('select[name="cfg_OPENAI_MODEL"]');
+    const urlInput = document.querySelector('input[name="cfg_OPENAI_URL"]');
+    if (!modelSel || !urlInput) return;
+
+    function syncUrl() {
+        const model = modelSel.value;
+        if (model.startsWith('gpt')) {
+            urlInput.value = 'https://api.openai.com';
+        } else {
+            urlInput.value = 'http://localhost:11434';
+        }
+    }
+
+    modelSel.addEventListener('change', syncUrl);
+})();
+
+// Toggle password visibility
+document.querySelectorAll('.toggle-secret').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const input = this.previousElementSibling;
+        const icon = this.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+});
+
+// Test connection buttons
+document.querySelectorAll('.test-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+        const group = this.dataset.group;
+        const resultEl = document.getElementById(`result-${group}`);
+        resultEl.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Testing...</span>';
+        this.disabled = true;
+
+        try {
+            const resp = await fetch(`/settings/test/${group}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                resultEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>${data.message}</span>`;
+            } else {
+                resultEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${data.message}</span>`;
+            }
+        } catch (e) {
+            resultEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>Request failed: ${e}</span>`;
+        } finally {
+            this.disabled = false;
+        }
+    });
+});
+
+// Ollama model selector
+async function refreshOllamaModels() {
+    const select = document.getElementById('ollama-model-select');
+    const hint = document.getElementById('model-select-hint');
+    const currentVal = document.getElementById('cfg-ollama-model').value;
+
+    hint.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Loading models…</span>';
+
+    try {
+        const resp = await fetch('/settings/ollama-models/');
+        const data = await resp.json();
+        if (data.ok && data.models.length > 0) {
+            select.innerHTML = '';
+            let found = false;
+            data.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.name;
+                opt.textContent = `${m.name}  (${m.size})`;
+                if (m.name === currentVal) { opt.selected = true; found = true; }
+                select.appendChild(opt);
+            });
+            if (!found) {
+                const opt = document.createElement('option');
+                opt.value = currentVal;
+                opt.textContent = `${currentVal} (current)`;
+                opt.selected = true;
+                select.insertBefore(opt, select.firstChild);
+            }
+            document.getElementById('cfg-ollama-model').value = select.value;
+            hint.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>${data.models.length} model(s) พร้อมใช้งาน</span>`;
+        } else {
+            hint.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${data.message || 'ไม่พบ model'}</span>`;
+        }
+    } catch (e) {
+        hint.innerHTML = `<span class="text-danger">Error: ${e}</span>`;
+    }
+}
+
+// ─── Auto-dismiss ──────────────────────────────────────────────────────
+function updateSevHidden() {
+    const checked = Array.from(document.querySelectorAll('.sev-check:checked')).map(cb => cb.value);
+    document.getElementById('autodismiss-severities-hidden').value = checked.join(',');
+}
+
+async function runAutoDismiss() {
+    const btn = document.getElementById('autodismiss-run-btn');
+    const resultEl = document.getElementById('autodismiss-result');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลัง Dismiss…';
+    resultEl.style.display = 'none';
+    try {
+        const resp = await fetch('/settings/run-autodismiss/', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+        });
+        const data = await resp.json();
+        resultEl.style.display = 'block';
+        if (data.ok) {
+            resultEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Dismissed <strong>${data.dismissed}</strong> alert(s) ที่เก่ากว่า ${data.days} วัน (${data.severities.join(', ')})</span>`;
+        } else {
+            resultEl.innerHTML = `<span class="text-danger">Error: ${data.error}</span>`;
+        }
+    } catch(e) {
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `<span class="text-danger">Request failed</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>Run Now';
+    }
+}
+
+// Ollama stats
+function loadOllamaStats() {
+    fetch('/settings/ollama-stats/')
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.total > 0 ? Math.round(data.analyzed / data.total * 100) : 0;
+            document.getElementById('ollama-stats').innerHTML = `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Analyzed</span>
+                        <span style="color:#c9d1d9;"><strong>${data.analyzed}</strong> / ${data.total} (${pct}%)</span>
+                    </div>
+                    <div class="progress" style="height:8px; background-color:#21262d;">
+                        <div class="progress-bar bg-success" style="width:${pct}%"></div>
+                    </div>
+                </div>
+                <small class="text-muted">Pending: ${data.pending} alert(s)</small>
+            `;
+        })
+        .catch(() => {
+            document.getElementById('ollama-stats').innerHTML = '<span class="text-danger">Failed to load stats</span>';
+        });
+}
+
+document.getElementById('tab-ollama-btn').addEventListener('click', function () {
+    loadOllamaStats();
+    refreshOllamaModels();
+});
+
+// ─── Batch Analyze + Live Progress ───────────────────────────────────────
+let _batchPollTimer = null;
+let _batchTotal = 0;        // total alerts (CRIT+HIGH+MED) at time of click
+let _batchAnalyzedStart = 0; // analyzed count at time of click
+
+function _stopBatchPoll() {
+    if (_batchPollTimer) { clearInterval(_batchPollTimer); _batchPollTimer = null; }
+}
+
+async function _pollPipelineStatus() {
+    try {
+        const r = await fetch('/settings/pipeline-status/');
+        const d = await r.json();
+
+        const bar     = document.getElementById('batch-progress-bar');
+        const label   = document.getElementById('batch-progress-label');
+        const count   = document.getElementById('batch-progress-count');
+        const qLabel  = document.getElementById('batch-queue-label');
+        const resultEl = document.getElementById('batch-result');
+        const progressEl = document.getElementById('batch-progress');
+
+        const done    = d.analyzed - _batchAnalyzedStart;  // newly analyzed this batch
+        const pending = d.pending;
+        const batchSize = done + pending;  // total this batch (approx)
+        const pct = batchSize > 0 ? Math.round(done / batchSize * 100) : 100;
+
+        bar.style.width = pct + '%';
+        count.textContent = `${done} / ${batchSize} วิเคราะห์แล้ว`;
+        qLabel.textContent = d.busy
+            ? `Queue: ${d.queue_depth} รอ · Ollama กำลังทำงาน…`
+            : `Queue ว่าง`;
+
+        // Update main stats bar too
+        loadOllamaStats();
+
+        if (!d.busy && d.queue_depth === 0) {
+            // Done!
+            _stopBatchPoll();
+            bar.style.width = '100%';
+            bar.classList.remove('progress-bar-animated', 'progress-bar-striped', 'bg-info');
+            bar.classList.add('bg-success');
+            label.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i>วิเคราะห์เสร็จแล้ว';
+            qLabel.textContent = '';
+            count.textContent = `${done} alerts วิเคราะห์ครบ`;
+
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>วิเคราะห์ครบ ${done} alert(s)</span>`;
+            document.getElementById('batch-analyze-btn').disabled = false;
+            document.getElementById('batch-analyze-btn').innerHTML = '<i class="bi bi-cpu me-1"></i>Batch Analyze';
+        }
+    } catch(e) {
+        // silent — keep polling
+    }
+}
+
+document.getElementById('batch-analyze-btn').addEventListener('click', async function () {
+    const btn = this;
+    const resultEl = document.getElementById('batch-result');
+    const progressEl = document.getElementById('batch-progress');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Queuing…';
+    resultEl.style.display = 'none';
+    progressEl.style.display = 'none';
+
+    // Snapshot current analyzed count before we queue
+    try {
+        const snap = await fetch('/settings/pipeline-status/');
+        const snapData = await snap.json();
+        _batchAnalyzedStart = snapData.analyzed;
+        _batchTotal = snapData.total;
+    } catch(e) {}
+
+    try {
+        const resp = await fetch('/settings/batch-analyze/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            if (data.queued === 0) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<span class="text-info"><i class="bi bi-info-circle me-1"></i>ทุก alert มี AI Analysis แล้ว ไม่มีอะไรต้องวิเคราะห์</span>';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Batch Analyze';
+                return;
+            }
+            // Show live progress
+            progressEl.style.display = 'block';
+            document.getElementById('batch-progress-bar').style.width = '0%';
+            document.getElementById('batch-progress-bar').className = 'progress-bar bg-info progress-bar-striped progress-bar-animated';
+            document.getElementById('batch-progress-label').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังวิเคราะห์…';
+            document.getElementById('batch-progress-count').textContent = `0 / ${data.queued}`;
+            document.getElementById('batch-queue-label').textContent = `Queue: ${data.queued} รอ · กำลังเริ่ม…`;
+
+            _stopBatchPoll();
+            _batchPollTimer = setInterval(_pollPipelineStatus, 3000);
+            // First poll immediately after 1s
+            setTimeout(_pollPipelineStatus, 1000);
+        } else {
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<span class="text-danger">Error: ${data.error || 'Unknown'}</span>`;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Batch Analyze';
+        }
+    } catch (e) {
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `<span class="text-danger">Request failed: ${e}</span>`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Batch Analyze';
+    }
+});
+
+// Also poll on tab open if pipeline is already busy
+document.getElementById('tab-ollama-btn').addEventListener('click', async function() {
+    // existing handlers run first (loadOllamaStats, refreshOllamaModels)
+    // additionally check if pipeline is busy from a previous batch
+    try {
+        const r = await fetch('/settings/pipeline-status/');
+        const d = await r.json();
+        if (d.busy || d.queue_depth > 0) {
+            const progressEl = document.getElementById('batch-progress');
+            if (progressEl.style.display === 'none' && !_batchPollTimer) {
+                progressEl.style.display = 'block';
+                document.getElementById('batch-progress-label').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pipeline กำลังทำงานอยู่…';
+                document.getElementById('batch-queue-label').textContent = `Queue: ${d.queue_depth} รอ`;
+                document.getElementById('batch-progress-count').textContent = `Pending: ${d.pending}`;
+                _batchAnalyzedStart = d.analyzed - (d.total - d.pending);
+                _stopBatchPoll();
+                _batchPollTimer = setInterval(_pollPipelineStatus, 3000);
+            }
+        }
+    } catch(e) {}
+});
+
+// MOPH Send Flex test
+document.getElementById('moph-flex-btn').addEventListener('click', async function () {
+    const btn = this;
+    const resultEl = document.getElementById('moph-flex-result');
+    const msgEl    = document.getElementById('moph-flex-msg');
+    const apiEl    = document.getElementById('moph-flex-api');
+    const payloadEl = document.getElementById('moph-flex-payload');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+    resultEl.style.display = 'none';
+
+    try {
+        const resp = await fetch('/settings/moph-test-flex/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await resp.json();
+        resultEl.style.display = 'block';
+        if (data.ok) {
+            msgEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>${data.message}</span>`;
+        } else {
+            msgEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${data.message}</span>`;
+        }
+        apiEl.textContent     = data.api_response || '—';
+        payloadEl.textContent = data.payload_preview || '—';
+    } catch (e) {
+        resultEl.style.display = 'block';
+        msgEl.innerHTML = `<span class="text-danger">Error: ${e}</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send me-1"></i>Send Flex';
+    }
+});
+
+// Restart bot
+document.getElementById('restart-bot-btn').addEventListener('click', async function () {
+    const resultEl = document.getElementById('restart-result');
+    resultEl.innerHTML = '<span class="text-muted">Restarting...</span>';
+    this.disabled = true;
+
+    try {
+        const resp = await fetch('/settings/restart-bot/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            resultEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>${data.message}</span>`;
+        } else {
+            resultEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${data.message}</span>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<span class="text-danger">Error: ${e}</span>`;
+    } finally {
+        this.disabled = false;
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,606 @@
+{% extends 'base.html' %}
+
+{% block title %}Alert #{{ alert.id }} - SOC Dashboard{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="/alerts/">Alerts</a></li>
+        <li class="breadcrumb-item active">Alert #{{ alert.id }}</li>
+    </ol>
+</nav>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <span class="badge badge-{{ alert.severity }} severity-badge fs-6 mb-2">{{ alert.severity }}</span>
+        <h4 class="mb-1">{{ alert.rule_description }}</h4>
+        <small class="text-muted">
+            Wazuh ID: {{ alert.wazuh_id }} &bull;
+            Rule {{ alert.rule_id }} &bull;
+            Level {{ alert.rule_level }} &bull;
+            {{ alert.timestamp|date:"Y-m-d H:i:s" }}
+        </small>
+    </div>
+    <a href="/alerts/" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<div class="row g-3">
+    <!-- Left Column -->
+    <div class="col-lg-7">
+        <!-- Alert Details -->
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Alert Details</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Agent</div>
+                        <div style="color:#c9d1d9;">{{ alert.agent_name }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Agent IP</div>
+                        <div style="color:#c9d1d9;">{{ alert.agent_ip|default:"—" }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Source IP</div>
+                        <div style="color:#c9d1d9;">{{ alert.src_ip|default:"—" }}</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">MITRE ATT&CK</div>
+                        <div>
+                            {% if alert.mitre_id %}
+                                <span class="badge bg-secondary">{{ alert.mitre_id }}</span>
+                            {% else %}<span style="color:#c9d1d9;">—</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Rule Groups</div>
+                        <div>
+                            {% for g in alert.rule_groups %}
+                                <span class="badge me-1" style="background-color:#21262d; color:#c9d1d9; border:1px solid #30363d;">{{ g }}</span>
+                            {% empty %}<span style="color:#c9d1d9;">—</span>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Created At</div>
+                        <div style="color:#c9d1d9;">{{ alert.created_at|date:"Y-m-d H:i:s" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-code-slash me-2"></i>Raw Event Data</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleRaw()">
+                    <i class="bi bi-eye" id="raw-toggle-icon"></i>
+                </button>
+            </div>
+            <div class="card-body p-0" id="raw-data-section" style="display:none">
+                <pre class="m-0 rounded-0">{{ alert.raw_data|safe }}</pre>
+            </div>
+        </div>
+
+        <!-- TheHive Cases -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-folder2-open me-2"></i>TheHive Cases</span>
+                {% if not alert.incidents.all %}
+                <button id="push-thehive-btn" class="btn btn-sm btn-success"
+                        onclick="pushToTheHive({{ alert.id }})">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Push to TheHive
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if alert.incidents.all %}
+                <table class="table mb-0">
+                    <thead>
+                        <tr><th>Case ID</th><th>Title</th><th>Status</th><th>Open</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for incident in alert.incidents.all %}
+                        <tr>
+                            <td>
+                                <a href="/incidents/{{ incident.pk }}/" class="text-decoration-none text-info">
+                                    <small>{{ incident.thehive_case_id }}</small>
+                                </a>
+                            </td>
+                            <td><small>{{ incident.title|truncatechars:50 }}</small></td>
+                            <td>
+                                {% if incident.status == 'New' %}
+                                    <span class="badge bg-primary">New</span>
+                                {% elif incident.status == 'InProgress' %}
+                                    <span class="badge bg-warning text-dark">In Progress</span>
+                                {% elif incident.status == 'Resolved' %}
+                                    <span class="badge bg-success">Resolved</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ incident.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if incident.thehive_url %}
+                                <a href="{{ incident.thehive_url }}" target="_blank"
+                                   class="btn btn-sm btn-outline-secondary" title="Open in TheHive">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-4" id="no-cases-msg">
+                    <i class="bi bi-folder2 d-block mb-2"></i>
+                    No cases linked to this alert.
+                    <div id="push-status" class="mt-2 small"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-lg-5">
+        <!-- AI Analysis -->
+        {% if alert.ai_analysis %}
+        {% with ai=alert.ai_analysis %}
+        <div class="card mb-3" style="border-color: #238636;">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #0d2d16;">
+                <span>
+                    <i class="bi bi-cpu me-2 text-success"></i>AI Security Analysis
+                    <small class="text-muted ms-2">{{ ai.analyzed_at|date:"H:i" }}</small>
+                </span>
+                <button id="reanalyze-btn" class="btn btn-sm btn-outline-success"
+                        onclick="triggerReAnalysis({{ alert.id }})">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Re-analyze
+                </button>
+            </div>
+            <div class="card-body">
+
+                <!-- Attack Type -->
+                <div class="mb-3">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Attack Type</div>
+                    {% if ai.attack_type_en %}
+                    <div class="fw-bold" style="color:#c9d1d9;">{{ ai.attack_type_en }}</div>
+                    <div style="color:#8b949e; font-size:0.88rem;">{{ ai.attack_type }}</div>
+                    {% else %}
+                    <div class="fw-bold" style="color:#c9d1d9;">{{ ai.attack_type }}</div>
+                    {% endif %}
+                </div>
+
+                {% if alert.src_ip %}
+                <div class="mb-3">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Attacker IP</div>
+                    <span class="badge bg-danger" style="font-size:0.9rem; font-family:monospace;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ alert.src_ip }}
+                    </span>
+                </div>
+                {% endif %}
+
+                <div class="row g-2 mb-3">
+                    {% if ai.mitre_technique %}
+                    <div class="col-auto">
+                        <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">MITRE</div>
+                        <span class="badge bg-secondary">{{ ai.mitre_technique }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="col-auto">
+                        <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Severity</div>
+                        <span class="badge badge-{{ ai.severity_assessment }}">{{ ai.severity_assessment }}</span>
+                    </div>
+                    <div class="col-auto">
+                        <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">False Positive</div>
+                        <span class="badge {% if ai.false_positive_pct > 60 %}bg-success{% elif ai.false_positive_pct > 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                            {{ ai.false_positive_pct }}%
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="mb-3">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Summary / สรุป</div>
+                    {% if ai.summary_en %}
+                    <div style="color:#c9d1d9; font-size:0.9rem;">{{ ai.summary_en }}</div>
+                    <div style="color:#8b949e; font-size:0.85rem; margin-top:0.25rem;">{{ ai.summary }}</div>
+                    {% else %}
+                    <div style="color:#c9d1d9;">{{ ai.summary }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Impact -->
+                <div class="mb-3">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Impact / ผลกระทบ</div>
+                    {% if ai.impact_en %}
+                    <div style="color:#c9d1d9; font-size:0.9rem;">{{ ai.impact_en }}</div>
+                    <div style="color:#8b949e; font-size:0.85rem; margin-top:0.25rem;">{{ ai.impact }}</div>
+                    {% else %}
+                    <div style="color:#c9d1d9;">{{ ai.impact }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Recommendations -->
+                <div class="mb-3">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Recommendations / คำแนะนำ</div>
+                    {% if ai.recommendations_en %}
+                    <div style="color:#c9d1d9; font-size:0.9rem;">{{ ai.recommendations_en }}</div>
+                    <div style="color:#8b949e; font-size:0.85rem; margin-top:0.25rem;">{{ ai.recommendations }}</div>
+                    {% else %}
+                    <div style="color:#c9d1d9;">{{ ai.recommendations }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Remediation Steps -->
+                {% if ai.remediation_steps or ai.remediation_steps_en %}
+                <div class="mb-1">
+                    <div class="text-muted mb-1" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Remediation Steps / วิธีแก้ไข</div>
+                    {% if ai.remediation_steps_en %}
+                    <div style="color:#c9d1d9; font-size:0.9rem;">
+                        {% for step in ai.remediation_steps_en_list %}
+                        <div><i class="bi bi-arrow-right-short text-success"></i>{{ step }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if ai.remediation_steps %}
+                    <div style="color:#8b949e; font-size:0.85rem; margin-top:0.25rem;">
+                        {% for step in ai.remediation_steps_list %}
+                        <div><i class="bi bi-arrow-right-short"></i>{{ step }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endwith %}
+        {% else %}
+        <div class="card mb-3">
+            <div class="card-body text-center text-muted py-4">
+                <i class="bi bi-cpu display-6 d-block mb-2"></i>
+                AI analysis not available for this alert
+                <div class="mt-3">
+                    <button id="analyze-btn" class="btn btn-sm btn-outline-success"
+                            onclick="triggerAnalysis({{ alert.id }})">
+                        <i class="bi bi-cpu me-1"></i>Analyze with AI
+                    </button>
+                    <div id="analyze-status" class="mt-2 small text-info" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Chat AI Analysis (OpenAI-format) -->
+        <div class="card mb-3" style="border-color: #1f6feb;">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #0d1f3c;">
+                <span>
+                    <i class="bi bi-chat-square-dots me-2" style="color:#58a6ff;"></i>Chat AI Analysis
+                    {% if alert.ai_analysis_chat %}
+                    <small class="text-muted ms-2">{{ alert.ai_analysis_chat.model_used }} · {{ alert.ai_analysis_chat.analyzed_at|date:"H:i" }}</small>
+                    {% endif %}
+                </span>
+                <button id="chat-analyze-btn" class="btn btn-sm btn-outline-primary"
+                        onclick="triggerChatAnalysis({{ alert.id }})">
+                    <i class="bi bi-arrow-clockwise me-1"></i>{% if alert.ai_analysis_chat %}Re-analyze{% else %}Analyze{% endif %}
+                </button>
+            </div>
+            <div class="card-body">
+                {% if alert.ai_analysis_chat %}
+                {% with c=alert.ai_analysis_chat %}
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Risk Level / ระดับความเสี่ยง</div>
+                        <span class="badge {% if c.risk_level == 'Critical' %}bg-danger{% elif c.risk_level == 'High' %}bg-warning text-dark{% elif c.risk_level == 'Medium' %}bg-primary{% else %}bg-secondary{% endif %} fs-6">
+                            {{ c.risk_level }}
+                        </span>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Classification / ประเภท</div>
+                        <span class="badge {% if c.is_malicious == 'malicious' %}bg-danger{% elif c.is_malicious == 'misconfiguration' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                            {% if c.is_malicious == 'malicious' %}malicious (โจมตี)
+                            {% elif c.is_malicious == 'misconfiguration' %}misconfiguration (ตั้งค่าผิด)
+                            {% elif c.is_malicious == 'benign' %}benign (ปกติ)
+                            {% else %}{{ c.is_malicious }}{% endif %}
+                        </span>
+                        {% if c.should_create_incident %}
+                        <span class="badge bg-danger ms-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>ควรสร้าง Incident</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Root Cause / สาเหตุ</div>
+                    {% if c.root_cause %}<div style="color:#c9d1d9;">{{ c.root_cause }}</div>{% endif %}
+                    {% if c.root_cause_th %}<div style="color:#8b949e; font-size:0.9rem;">{{ c.root_cause_th }}</div>{% endif %}
+                </div>
+                <div>
+                    <div class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:.05em;">Recommended Action / การดำเนินการ</div>
+                    {% if c.recommended_action %}<div style="color:#c9d1d9;">{{ c.recommended_action }}</div>{% endif %}
+                    {% if c.recommended_action_th %}<div style="color:#8b949e; font-size:0.9rem;">{{ c.recommended_action_th }}</div>{% endif %}
+                </div>
+                {% endwith %}
+                {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-chat-square-dots d-block mb-2" style="font-size:2rem;"></i>
+                    ยังไม่ได้วิเคราะห์ด้วย Chat AI
+                    <div id="chat-analyze-status" class="mt-2 small text-info" style="display:none"></div>
+                </div>
+                {% endif %}
+                {% if alert.ai_analysis_chat %}
+                <div id="chat-analyze-status" class="mt-2 small text-info" style="display:none"></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Data sent to AI -->
+        <div class="card mb-3" style="border-color:#30363d;">
+            <div class="card-header d-flex justify-content-between align-items-center"
+                 style="background-color:#161b22; cursor:pointer;"
+                 onclick="toggleAiPayload()" id="ai-payload-header">
+                <span style="font-size:0.9rem;">
+                    <i class="bi bi-braces me-2" style="color:#8b949e;"></i>
+                    <span style="color:#8b949e;">ข้อมูลที่ส่งให้ AI วิเคราะห์</span>
+                    <small class="text-muted ms-2">คลิกเพื่อดู / ซ่อน</small>
+                </span>
+                <i class="bi bi-chevron-down text-muted" id="ai-payload-chevron"></i>
+            </div>
+            <div id="ai-payload-section" style="display:none;">
+                <div class="card-body pb-2 pt-2">
+                    <p class="text-muted mb-2" style="font-size:0.8rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        JSON นี้คือข้อมูลที่ระบบดึงจาก alert แล้วส่งให้ Ollama และ Chat AI วิเคราะห์
+                        — สามารถนำไปค้นหาเพิ่มเติมหรือตรวจสอบความถูกต้องของการวิเคราะห์ได้
+                    </p>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary position-absolute"
+                                style="top:6px; right:6px; font-size:0.75rem; z-index:1;"
+                                onclick="copyAiPayload(this)" title="Copy JSON">
+                            <i class="bi bi-clipboard me-1"></i>Copy
+                        </button>
+                        <pre id="ai-payload-json"
+                             style="background:#0d1117; border:1px solid #30363d; border-radius:6px;
+                                    padding:1rem; padding-right:5rem; font-size:0.78rem;
+                                    color:#c9d1d9; max-height:400px; overflow-y:auto;
+                                    white-space:pre-wrap; word-break:break-word; margin:0;">{{ event_json }}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        {% if alert.notifications.all %}
+        <div class="card">
+            <div class="card-header"><i class="bi bi-bell me-2"></i>Notifications Sent</div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <thead>
+                        <tr><th>Channel</th><th>Status</th><th>Time</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for notif in alert.notifications.all %}
+                        <tr>
+                            <td><span class="badge bg-primary">{{ notif.channel }}</span></td>
+                            <td>
+                                {% if notif.status == 'sent' %}
+                                    <span class="badge bg-success">Sent</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ notif.sent_at|date:"H:i:s" }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const _csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+
+/* ── Polling helper ─────────────────────────────────────────────────────── */
+function _pollUntilReady(alertId, field, onReady, onTick) {
+    let secs = 0;
+    const timer = setInterval(() => {
+        secs += 5;
+        if (onTick) onTick(secs);
+        fetch('/alerts/' + alertId + '/ai-status/')
+            .then(r => r.json())
+            .then(data => {
+                if (data[field]) {
+                    clearInterval(timer);
+                    onReady();
+                }
+            })
+            .catch(() => {});
+    }, 5000);
+}
+
+/* ── Ollama AI Analysis ─────────────────────────────────────────────────── */
+function triggerAnalysis(alertId) {
+    const btn = document.getElementById('analyze-btn');
+    const statusEl = document.getElementById('analyze-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังส่ง…';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'ส่งไปยัง Ollama แล้ว — กำลังวิเคราะห์ในพื้นหลัง…';
+
+    fetch('/alerts/' + alertId + '/analyze/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': _csrf()},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok && data.queued) {
+            _pollUntilReady(alertId, 'has_ai',
+                () => { statusEl.textContent = 'เสร็จแล้ว! กำลัง reload…'; location.reload(); },
+                (s) => { statusEl.textContent = 'กำลังวิเคราะห์… (' + s + 's) หน้าจะ reload อัตโนมัติ'; }
+            );
+        } else if (!data.ok) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Analyze with AI';
+            statusEl.textContent = 'Error: ' + (data.error || 'Unknown');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cpu me-1"></i>Analyze with AI';
+        statusEl.textContent = 'Network error — ลองใหม่อีกครั้ง';
+    });
+}
+
+/* ── Re-analyze (Ollama) ─────────────────────────────────────────────────── */
+function triggerReAnalysis(alertId) {
+    const btn = document.getElementById('reanalyze-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังส่ง…';
+
+    fetch('/alerts/' + alertId + '/reanalyze/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': _csrf()},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok && data.queued) {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>วิเคราะห์อยู่…';
+            let s = 0;
+            const t = setInterval(() => {
+                s += 5;
+                btn.title = s + 's';
+                fetch('/alerts/' + alertId + '/ai-status/')
+                    .then(r => r.json())
+                    .then(d => { if (d.has_ai) { clearInterval(t); location.reload(); } })
+                    .catch(() => {});
+            }, 5000);
+        } else if (!data.ok) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Re-analyze';
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Re-analyze';
+    });
+}
+
+/* ── Chat AI Analysis ────────────────────────────────────────────────────── */
+function triggerChatAnalysis(alertId) {
+    const btn = document.getElementById('chat-analyze-btn');
+    const statusEl = document.getElementById('chat-analyze-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังส่ง…';
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'ส่งไปยัง Chat AI แล้ว — กำลังวิเคราะห์…'; }
+
+    fetch('/alerts/' + alertId + '/analyze-chat/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': _csrf()},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok && data.queued) {
+            _pollUntilReady(alertId, 'has_chat',
+                () => { if (statusEl) statusEl.textContent = 'เสร็จแล้ว! กำลัง reload…'; location.reload(); },
+                (s) => { if (statusEl) statusEl.textContent = 'กำลังวิเคราะห์… (' + s + 's)'; }
+            );
+        } else if (!data.ok) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Analyze';
+            if (statusEl) statusEl.textContent = 'Error: ' + (data.error || 'Unknown');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Analyze';
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Network error — ลองใหม่อีกครั้ง'; }
+    });
+}
+
+function pushToTheHive(alertId) {
+    const btn = document.getElementById('push-thehive-btn');
+    const statusEl = document.getElementById('push-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pushing…';
+
+    fetch('/alerts/' + alertId + '/push-thehive/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Case #' + data.case_number + ' Created';
+            btn.className = 'btn btn-sm btn-success';
+            if (statusEl) {
+                statusEl.innerHTML = '<span class="text-success">Case created! Reloading…</span>';
+            }
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i>Push to TheHive';
+            if (statusEl) {
+                statusEl.innerHTML = '<span class="text-danger">Error: ' + (data.error || 'Unknown') + '</span>';
+            }
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i>Push to TheHive';
+        if (statusEl) statusEl.innerHTML = '<span class="text-danger">Network error</span>';
+    });
+}
+
+function toggleAiPayload() {
+    const section = document.getElementById('ai-payload-section');
+    const chevron = document.getElementById('ai-payload-chevron');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        chevron.className = 'bi bi-chevron-up text-muted';
+    } else {
+        section.style.display = 'none';
+        chevron.className = 'bi bi-chevron-down text-muted';
+    }
+}
+
+function copyAiPayload(btn) {
+    const text = document.getElementById('ai-payload-json').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
+        btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.replace('btn-outline-success', 'btn-outline-secondary');
+        }, 1500);
+    });
+}
+
+function toggleRaw() {
+    const section = document.getElementById('raw-data-section');
+    const icon = document.getElementById('raw-toggle-icon');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.className = 'bi bi-eye-slash';
+        // Pretty print JSON
+        const pre = section.querySelector('pre');
+        try {
+            const data = JSON.parse(pre.textContent);
+            pre.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {}
+    } else {
+        section.style.display = 'none';
+        icon.className = 'bi bi-eye';
+    }
+}
+</script>
+{% endblock %}
