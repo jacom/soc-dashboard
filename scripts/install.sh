@@ -189,7 +189,7 @@ fi
 
 systemctl enable --now postgresql
 
-sudo -u postgres psql -v ON_ERROR_STOP=0 <<SQL
+cd /tmp && sudo -u postgres psql -v ON_ERROR_STOP=0 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
