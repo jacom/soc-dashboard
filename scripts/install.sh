@@ -206,7 +206,11 @@ fi
 
 systemctl enable --now "${PG_SERVICE:-postgresql}"
 
-cd /tmp && sudo -u postgres psql -v ON_ERROR_STOP=0 <<SQL
+# ใช้ full path psql (PG15 ไม่อยู่ใน default PATH)
+PSQL_BIN="${PG_BIN:+${PG_BIN}/}psql"
+command -v "$PSQL_BIN" &>/dev/null || PSQL_BIN="$(find /usr/pgsql-*/bin /usr/bin /usr/local/bin -name psql 2>/dev/null | head -1)"
+
+cd /tmp && sudo -u postgres "$PSQL_BIN" -v ON_ERROR_STOP=0 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
