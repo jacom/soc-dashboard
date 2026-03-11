@@ -21,35 +21,15 @@
 ### แบบที่ 1 — Docker Compose (แนะนำ)
 
 ```bash
-# 1. Clone repo
 git clone https://github.com/jacom/soc-dashboard.git
 cd soc-dashboard
-
-# 2. ตั้งค่า environment
-cp .env.example .env
-nano .env   # แก้ไขค่าที่มี <...>
-
-# 3. Start
-docker compose up -d
-
-# 4. สร้าง admin user
-docker compose exec app python manage.py createsuperuser
-
-# 5. เข้าใช้งาน
-# http://<server-ip>:8500
+sudo bash scripts/init.sh
 ```
 
-**ค่าสำคัญใน `.env` ที่ต้องแก้:**
-
-| Variable | คำอธิบาย |
-|----------|---------|
-| `SECRET_KEY` | สร้างด้วย `python3 -c "import secrets; print(secrets.token_hex(50))"` |
-| `DB_PASSWORD` | รหัสผ่าน PostgreSQL |
-| `ALLOWED_HOSTS` | IP หรือ domain ของเซิร์ฟเวอร์ |
-| `CSRF_TRUSTED_ORIGINS` | URL ที่ใช้เข้าระบบ เช่น `http://192.168.1.10:8500` |
-| `WAZUH_INDEXER_URL` | URL ของ Wazuh Indexer |
-| `WAZUH_INDEXER_PASSWORD` | รหัสผ่าน Wazuh Indexer |
-| `LICENSE_VENDOR_SECRET` | ได้รับจาก vendor |
+Script จะ:
+- Auto-generate `SECRET_KEY`, `DB_PASSWORD`, detect IP เครื่องให้อัตโนมัติ
+- ถามแค่ **Wazuh Indexer URL** และ **Password**
+- รัน `docker compose up`, migrate, collectstatic, createsuperuser ให้ครบ
 
 ---
 
