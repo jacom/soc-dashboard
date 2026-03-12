@@ -217,6 +217,22 @@ fi
 ok "Docker $(docker --version | awk '{print $3}' | tr -d ',')"
 ok "Docker Compose $(docker compose version --short 2>/dev/null || echo 'OK')"
 
+# ── ตรวจสอบ volume เก่า ──────────────────────────────────────────────────────
+COMPOSE_PROJECT=$(basename "$APP_DIR" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]_-')
+VOLUME_NAME="${COMPOSE_PROJECT}_postgres_data"
+if docker volume inspect "$VOLUME_NAME" &>/dev/null; then
+    warn "พบ postgres volume เก่า ($VOLUME_NAME)"
+    warn "ถ้า password ใน .env ไม่ตรงกับ volume เก่า — migrate จะ fail"
+    echo ""
+    read -rp "  ลบ volume เก่าและเริ่มใหม่? (ข้อมูลใน DB จะหาย) [y/N]: " _VANS
+    if [[ "${_VANS,,}" == "y" ]]; then
+        docker compose down -v 2>/dev/null || true
+        ok "ลบ volume เก่าแล้ว"
+    else
+        info "คงไว้ volume เดิม — ถ้า migrate fail ให้รัน: docker compose down -v"
+    fi
+fi
+
 # ── Docker Compose Up ─────────────────────────────────────────────────────────
 info "Starting Docker Compose stack..."
 docker compose up -d
@@ -234,6 +250,19 @@ done
 info "Running migrations..."
 docker compose exec app python manage.py migrate --noinput
 ok "Migration เสร็จสิ้น"
+
+# ── Seed Wazuh Indexer URL จาก .env ──────────────────────────────────────────
+# migration ตั้งค่าเริ่มต้นเป็น '' — อัปเดตจาก .env เพื่อให้ Wazuh Config Check
+# แสดงค่าที่ถูกต้อง (user ยังแก้ได้ภายหลังที่ /settings/)
+_ENV_WAZUH_URL=$(grep "^WAZUH_INDEXER_URL=" .env | cut -d= -f2-)
+_ENV_WAZUH_USER=$(grep "^WAZUH_INDEXER_USERNAME=" .env | cut -d= -f2-)
+if [[ -n "$_ENV_WAZUH_URL" ]]; then
+docker compose exec -T app python manage.py shell -c "
+from apps.config.models import IntegrationConfig
+IntegrationConfig.objects.filter(key='WAZUH_INDEXER_URL').update(value='${_ENV_WAZUH_URL}')
+IntegrationConfig.objects.filter(key='WAZUH_INDEXER_USER').update(value='${_ENV_WAZUH_USER:-admin}')
+" 2>/dev/null && info "Wazuh Indexer URL seeded → ${_ENV_WAZUH_URL}"
+fi
 
 # ── Collectstatic ─────────────────────────────────────────────────────────────
 info "Collecting static files..."

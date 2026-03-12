@@ -7,7 +7,7 @@ NEW_CONFIGS = [
         'group': 'wazuh',
         'is_secret': False,
         'description': 'Wazuh Indexer (OpenSearch) URL — e.g. https://192.168.120.252:9200',
-        'value': 'https://192.168.120.252:9200',
+        'value': '',
     },
     {
         'key': 'WAZUH_INDEXER_USER',
