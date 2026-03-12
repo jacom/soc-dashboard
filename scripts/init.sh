@@ -23,6 +23,12 @@ echo -e "${BLUE}  SOC Dashboard — Setup${NC}"
 echo -e "${BLUE}════════════════════════════════════════════${NC}"
 echo ""
 
+# ── ดึง code ล่าสุดจาก GitHub ────────────────────────────────────────────────
+if git rev-parse --is-inside-work-tree &>/dev/null; then
+    info "ดึง code ล่าสุดจาก GitHub..."
+    git pull origin main 2>/dev/null && ok "Code อัปเดตแล้ว" || warn "git pull ไม่สำเร็จ — ใช้ code ปัจจุบัน"
+fi
+
 # ── ตรวจสอบ .env ─────────────────────────────────────────────────────────────
 if [[ -f .env ]]; then
     warn ".env มีอยู่แล้ว — ข้ามการสร้างใหม่"
