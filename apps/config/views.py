@@ -711,15 +711,17 @@ def restart_bot(request):
 
 # ── Wazuh Config Check ─────────────────────────────────────────────────────────
 def _get_wazuh_indexer_cfg():
-    """อ่าน Wazuh Indexer config จาก DB (IntegrationConfig) ที่ตั้งค่าผ่าน Settings UI"""
+    """อ่าน Wazuh Indexer config จาก DB (IntegrationConfig) ที่ตั้งค่าผ่าน Settings UI
+    ถ้า DB ว่าง ('') จะ fallback ไป settings.py (.env)
+    """
     cfg = {c.key: c.value for c in IntegrationConfig.objects.filter(
         key__in=['WAZUH_INDEXER_URL', 'WAZUH_INDEXER_USER', 'WAZUH_INDEXER_PASSWORD', 'WAZUH_VULN_INDEX']
     )}
     return (
-        cfg.get('WAZUH_INDEXER_URL', _settings.WAZUH_INDEXER_URL),
-        cfg.get('WAZUH_INDEXER_USER', _settings.WAZUH_INDEXER_USERNAME),
-        cfg.get('WAZUH_INDEXER_PASSWORD', _settings.WAZUH_INDEXER_PASSWORD),
-        cfg.get('WAZUH_VULN_INDEX', _settings.WAZUH_VULN_INDEX),
+        cfg.get('WAZUH_INDEXER_URL') or _settings.WAZUH_INDEXER_URL,
+        cfg.get('WAZUH_INDEXER_USER') or _settings.WAZUH_INDEXER_USERNAME,
+        cfg.get('WAZUH_INDEXER_PASSWORD') or _settings.WAZUH_INDEXER_PASSWORD,
+        cfg.get('WAZUH_VULN_INDEX') or _settings.WAZUH_VULN_INDEX,
     )
 
 
